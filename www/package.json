@@ -1,0 +1,27 @@
+{
+  "name": "andrews-chess-engine-web",
+  "version": "0.1.0",
+  "description": "web application for Andrew's Chess Engine",
+  "main": "index.js",
+  "scripts": {
+    "build": "webpack --config webpack.config.js",
+    "start": "webpack-dev-server"
+  },
+  "keywords": [
+    "webassembly",
+    "wasm",
+    "rust",
+    "webpack"
+  ],
+  "author": "Andrew Morin <andrewmorin8@gmail.com>",
+  "license": "MIT",
+  "dependencies": {
+    "wasm-andrews-chess-engine": "file:../pkg"
+  },
+  "devDependencies": {
+    "webpack": "^4.29.3",
+    "webpack-cli": "^3.1.0",
+    "webpack-dev-server": "^3.1.5",
+    "copy-webpack-plugin": "^5.0.0"
+  }
+}

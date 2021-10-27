@@ -1,3 +1,4 @@
+#[repr(u8)]
 #[derive(Debug)]
 pub enum Color {
   Empty,
@@ -5,6 +6,7 @@ pub enum Color {
   Black,
 }
 
+#[repr(u8)]
 #[derive(Debug)]
 pub enum Piece {
   Empty,
