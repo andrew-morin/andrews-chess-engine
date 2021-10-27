@@ -1,0 +1,30 @@
+.board {
+  border-collapse: collapse;
+}
+
+.board tr {
+  font-size: 4rem;
+}
+
+.board tr:nth-child(even) td:nth-child(even),
+.board tr:nth-child(odd) td:nth-child(odd) {
+  background: #ffce9e;
+}
+
+.board tr:nth-child(odd) td:nth-child(even),
+.board tr:nth-child(even) td:nth-child(odd) {
+  background: #d18b47;
+}
+
+.board td {
+  padding: 0;
+  height: 5rem;
+  width: 5rem;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.board td img {
+  height: 5rem;
+  display: block;
+}

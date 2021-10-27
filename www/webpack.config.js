@@ -9,6 +9,19 @@ module.exports = {
   },
   mode: "development",
   plugins: [
-    new CopyWebpackPlugin(['index.html'])
+    new CopyWebpackPlugin({
+      patterns: ['index.html', 'style.css']
+    })
   ],
+  module: {
+    rules: [
+      {
+        test: /\.svg/,
+        type: 'asset/resource'
+      }
+    ]
+  },
+  experiments: {
+    syncWebAssembly: true
+  }
 };
