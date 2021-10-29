@@ -1,4 +1,4 @@
-use super::types::{Board, Color, Piece, Square};
+use super::types::{Board, Color, GameState, Piece, Square};
 
 pub const EMPTY_SQUARE: Square = Square { empty: true,  color: Color::Empty, piece: Piece::Empty  };
 pub const WHITE_PAWN:   Square = Square { empty: false, color: Color::White, piece: Piece::Pawn   };
@@ -25,6 +25,11 @@ pub const INITIAL_BOARD: Board = [
   WHITE_ROOK  , WHITE_KNIGHT, WHITE_BISHOP, WHITE_QUEEN , WHITE_KING  , WHITE_BISHOP, WHITE_KNIGHT, WHITE_ROOK  ,
 ];
 
+pub const INITIAL_GAME_STATE: GameState = GameState {
+  board: INITIAL_BOARD,
+  turn: Color::White,
+};
+
 pub const MAILBOX: [Option<usize>; 120] = [
   None, None,     None,     None,     None,     None,     None,     None,     None,     None,
   None, None,     None,     None,     None,     None,     None,     None,     None,     None,
@@ -40,7 +45,7 @@ pub const MAILBOX: [Option<usize>; 120] = [
   None, None,     None,     None,     None,     None,     None,     None,     None,     None
 ];
 
-pub const BOARD_INDEX_TO_MAILBOX_INDEX: [i8; 64] = [
+pub const BOARD_INDEX_TO_MAILBOX_INDEX: [usize; 64] = [
 	21, 22, 23, 24, 25, 26, 27, 28,
 	31, 32, 33, 34, 35, 36, 37, 38,
 	41, 42, 43, 44, 45, 46, 47, 48,
