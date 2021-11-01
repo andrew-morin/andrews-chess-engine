@@ -1,14 +1,23 @@
+#[macro_use]
+extern crate serde_big_array;
 extern crate wasm_bindgen;
 
 mod board;
 mod engine;
 
-use board::types::{Board, Color, Piece, Square};
+use board::constants::*;
+use board::types::*;
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
 pub fn print_board() -> String {
   board_to_fen_string(board::constants::INITIAL_BOARD)
+}
+
+#[wasm_bindgen]
+pub fn get_initial_board() -> JsValue {
+  let initial_game_state = INITIAL_GAME_STATE;
+  JsValue::from_serde(&initial_game_state).unwrap()
 }
 
 fn board_to_fen_string(board: Board) -> String {

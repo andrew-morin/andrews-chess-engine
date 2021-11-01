@@ -1,13 +1,48 @@
 pub mod types;
 pub mod constants;
+pub mod fen_util;
 
 use constants::*;
+use fen_util::*;
 use types::{Board, Color, GameState, Move, Piece, Square};
 
 const CARDINAL_MAILBOX_DIRECTION_OFFSETS: [usize; 2] = [1, 10];
 const DIAGONAL_MAILBOX_DIRECTION_OFFSETS: [usize; 2] = [9, 11];
 const ALL_MAILBOX_DIRECTION_OFFSETS: [usize; 4] = [1, 9, 10, 11];
 const KNIGHT_MAILBOX_DIRECTION_OFFSETS: [usize; 4] = [8, 12, 19, 21];
+
+pub fn in_check(game_state: &GameState) -> bool {
+  let king = find_king(game_state);
+  false
+}
+
+fn find_king(game_state: &GameState) -> usize {
+  for (index, square) in game_state.board.iter().enumerate() {
+    if square.piece == Piece::King && square.color == game_state.turn {
+      return index;
+    }
+  }
+  unreachable!()
+}
+
+pub fn perform_move(mut game_state: GameState, _move: Move, mut move_list: Vec<Move>) -> (GameState, Vec<Move>) {
+  let Move { from, to, .. } = _move;
+  game_state.board[to] = EMPTY_SQUARE;
+  game_state.board.swap(from, to);
+  move_list.push(_move);
+  (game_state, move_list)
+}
+
+pub fn undo_last_move(mut game_state: GameState, mut move_list: Vec<Move>) -> (GameState, Vec<Move>) {
+  if let Some(_move) = move_list.pop() {
+    let Move { from, to, capture, captured_square, .. } = _move;
+    if capture {
+      game_state.board[from] = captured_square;
+    }
+    game_state.board.swap(from, to);
+  }
+  (game_state, move_list)
+}
 
 pub fn generate_pseudo_legal_moves(game_state: &GameState) -> Vec<Move> {
   let mut moves = vec!();
@@ -43,7 +78,7 @@ fn gen_moves_pawn(game_state: &GameState, index: usize, mut moves: Vec<Move>) ->
   for index in attack_indices {
     let target_square = &game_state.board[index];
     if !target_square.empty && game_state.board[index].color != game_state.turn {
-      moves.push(Move::capture(index, index));
+      moves.push(Move::capture(index, index, *target_square));
     }
   }
 
@@ -135,7 +170,7 @@ fn gen_move_to_index(game_state: &GameState, target_square: &Square, from: usize
     Some(Move::new(from, to))
   } else {
     if target_square.color != game_state.turn {
-      Some(Move::capture(from, to))
+      Some(Move::capture(from, to, *target_square))
     } else {
       None
     }
@@ -151,75 +186,6 @@ fn get_piece_mailbox_direction_offsets(piece: &Piece) -> &[usize] {
     // Pawn moves are calculated differently
     _ => &[],
   }
-}
-
-fn get_game_state_from_fen(fen: &str) -> GameState {
-  let mut board: Board = INITIAL_BOARD;
-  let mut index: usize = 0;
-  let mut chars = fen.chars();
-  loop {
-    let c = chars.next();
-    if c == None {
-      panic!("Invalid FEN: '{}', ended too early", fen);
-    }
-    let c = c.unwrap();
-    let digit = c.to_digit(10);
-    if let Some(digit) = digit {
-      let end_index = index + digit as usize;
-      for i in index..end_index {
-        board[i] = EMPTY_SQUARE;
-      }
-      index = end_index;
-    } else {
-      if c == ' ' {
-        index += 1;
-        break;
-      } else if c == '/' {
-        continue;
-      }
-      board[index] = match c {
-        'p' => BLACK_PAWN,
-        'b' => BLACK_BISHOP,
-        'n' => BLACK_KNIGHT,
-        'r' => BLACK_ROOK,
-        'q' => BLACK_QUEEN,
-        'k' => BLACK_KING,
-        'P' => WHITE_PAWN,
-        'B' => WHITE_BISHOP,
-        'N' => WHITE_KNIGHT,
-        'R' => WHITE_ROOK,
-        'Q' => WHITE_QUEEN,
-        'K' => WHITE_KING,
-        _ => panic!("Invalid FEN: '{}', invalid character '{}' ", fen, c),
-      };
-      index += 1
-    }
-  }
-  let active_color = chars.next();
-  let turn = match active_color {
-    Some('w') => Color::White,
-    Some('b') => Color::Black,
-    Some(c) => panic!("Invalid FEN: '{}', invalid active color '{}'", fen, c),
-    None => panic!("Invalid FEN: '{}', ended too early", fen),
-  };
-
-  GameState { board, turn }
-}
-
-fn get_square_from_index(index: usize) -> String {
-  let file = match index % 8 {
-    0 => 'a',
-    1 => 'b',
-    2 => 'c',
-    3 => 'd',
-    4 => 'e',
-    5 => 'f',
-    6 => 'g',
-    7 => 'h',
-    _ => unreachable!()
-  };
-  let rank = 8 - index / 8;
-  file.to_string() + &rank.to_string()
 }
 
 #[cfg(test)]
