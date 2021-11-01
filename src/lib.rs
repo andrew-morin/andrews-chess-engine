@@ -26,8 +26,8 @@ fn board_to_fen_string(board: Board) -> String {
       board_str.push(get_fen_char_from_square(square));
     }
 
-    // last square in the rank
-    if index % 8 == 7 {
+    // last square in the rank, but not last rank
+    if index % 8 == 7 && index < 63 {
       if space_count > 0 {
         board_str.push_str(&space_count.to_string());
         space_count = 0;

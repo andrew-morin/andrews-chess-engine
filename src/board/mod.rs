@@ -223,9 +223,24 @@ fn get_square_from_index(index: usize) -> String {
 }
 
 #[cfg(test)]
-mod tests {
+mod fen_tests {
+  use super::*;
+  use crate::board_to_fen_string;
+
+  #[test]
+  fn board_to_fen() {
+    let game_state = get_game_state_from_fen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq -");
+    let fen = board_to_fen_string(game_state.board);
+
+    assert_eq!(fen, "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R");
+  }
+}
+
+#[cfg(test)]
+mod perft_tests {
   use super::*;
   use crate::board::constants::INITIAL_GAME_STATE;
+
   #[test]
   fn generate_first_move() {
     let moves = generate_pseudo_legal_moves(&INITIAL_GAME_STATE);
@@ -234,7 +249,7 @@ mod tests {
 
   #[test]
   fn perft_pos_2() {
-    let game_state = get_game_state_from_fen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - ");
+    let game_state = get_game_state_from_fen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq -");
     let moves = generate_pseudo_legal_moves(&game_state);
     for m in &moves {
       let from_square = get_square_from_index(m.from);
