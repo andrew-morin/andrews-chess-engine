@@ -144,7 +144,11 @@ fn gen_moves_slide_direction(game_state: &GameState, index: usize, mailbox_index
         // Off the board
         None => break,
         Some(generated_move) => {
+          let capture = generated_move.capture;
           moves.push(generated_move);
+          if capture {
+            break;
+          }
           if target_mailbox_index < mailbox_index {
             target_mailbox_index -= mailbox_offset;
           } else {
