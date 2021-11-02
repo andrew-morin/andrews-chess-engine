@@ -10,6 +10,16 @@ pub enum Color {
   Black,
 }
 
+impl Color {
+  pub fn opposite(&self) -> Color {
+    match self {
+      Color::White => Color::Black,
+      Color::Black => Color::White,
+      Color::Empty => Color::Empty,
+    }
+  }
+}
+
 impl Default for Color {
   fn default() -> Self { Color::Empty }
 }
@@ -39,7 +49,7 @@ pub struct Square {
 
 pub type Board = [Square; 64];
 
-#[derive(Serialize, Deserialize, Debug, Default)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Default)]
 pub struct Move {
   pub from: usize,
   pub to: usize,
@@ -64,7 +74,7 @@ impl Move {
   }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct GameState {
   #[serde(with = "BigArray")]
   pub board: Board,

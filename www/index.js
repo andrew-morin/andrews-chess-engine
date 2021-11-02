@@ -32,7 +32,7 @@ const SQUARE_IMAGE_MAP = {
 };
 
 let gameState = wasm.get_initial_game_state();
-let pseudoLegalMoves = wasm.get_pseudo_legal_moves(gameState);
+let legalMoves = wasm.get_legal_moves(gameState);
 
 gameState.board.forEach((square, index) => {
   const rankIndex = Math.floor(index / 8);
@@ -66,8 +66,8 @@ document.addEventListener('click', () => {
 
 function updateGameState(_gameState) {
   gameState = _gameState;
-  pseudoLegalMoves = wasm.get_pseudo_legal_moves(_gameState);
-  console.log(pseudoLegalMoves);
+  legalMoves = wasm.get_legal_moves(_gameState);
+  console.log(legalMoves);
 }
 
 function getPieceImage(square) {
@@ -89,7 +89,7 @@ function getOnClick(index) {
     const oldValidTargetSquares = validTargetSquares;
     const oldSelectedPiece = selectedPiece;
     if (selectedPiece != null && validTargetSquares.includes(index)) {
-      const move = pseudoLegalMoves.find(
+      const move = legalMoves.find(
         (_move) => _move.from === selectedPiece && _move.to === index,
       );
       gameState = wasm.perform_move(gameState, move);
@@ -134,7 +134,7 @@ function updateValidCells(oldSelectedPiece, oldValidTargetSquares) {
 function updateSelectedPiece(index) {
   selectedPiece = index;
   validTargetSquares = [];
-  pseudoLegalMoves.forEach((move) => {
+  legalMoves.forEach((move) => {
     if (move.from === index) {
       validTargetSquares.push(move.to);
     }

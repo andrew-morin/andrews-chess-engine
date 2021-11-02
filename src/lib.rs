@@ -6,6 +6,7 @@ mod board;
 mod engine;
 
 use board::constants::*;
+use board::fen_util::*;
 use board::types::*;
 use wasm_bindgen::prelude::*;
 
@@ -28,64 +29,16 @@ pub fn get_pseudo_legal_moves(game_state: JsValue) -> JsValue {
 }
 
 #[wasm_bindgen]
+pub fn get_legal_moves(game_state: JsValue) -> JsValue {
+  let game_state: GameState = game_state.into_serde().unwrap();
+  let moves = board::generate_legal_moves(&game_state);
+  return JsValue::from_serde(&moves).unwrap();
+}
+
+#[wasm_bindgen]
 pub fn perform_move(game_state: JsValue, next_move: JsValue) -> JsValue {
   let game_state: GameState = game_state.into_serde().unwrap();
   let next_move: Move = next_move.into_serde().unwrap();
   let game_state = board::perform_move(game_state, next_move);
   return JsValue::from_serde(&game_state).unwrap();
-}
-
-fn board_to_fen_string(board: Board) -> String {
-  let mut board_str = String::new();
-  let mut space_count = 0;
-  for (index, square) in board.iter().enumerate() {
-    let letter = get_fen_char_from_square(square);
-    if letter == ' ' {
-      space_count += 1;
-    } else {
-      if space_count > 0 {
-        board_str.push_str(&space_count.to_string());
-        space_count = 0;
-      }
-      board_str.push(get_fen_char_from_square(square));
-    }
-
-    // last square in the rank, but not last rank
-    if index % 8 == 7 && index < 63 {
-      if space_count > 0 {
-        board_str.push_str(&space_count.to_string());
-        space_count = 0;
-      }
-      board_str.push_str("/");
-    }
-  }
-
-  board_str
-}
-
-fn get_fen_char_from_square(square: &Square) -> char {
-  if square.empty == true {
-    return ' ';
-  }
-  match square.color {
-    Color::Black => match square.piece {
-      Piece::Pawn   => 'p',
-      Piece::Bishop => 'b',
-      Piece::Knight => 'n',
-      Piece::Rook   => 'r',
-      Piece::Queen  => 'q',
-      Piece::King   => 'k',
-      Piece::Empty  => ' ',
-    },
-    Color::White => match square.piece {
-      Piece::Pawn   => 'P',
-      Piece::Bishop => 'B',
-      Piece::Knight => 'N',
-      Piece::Rook   => 'R',
-      Piece::Queen  => 'Q',
-      Piece::King   => 'K',
-      Piece::Empty  => ' ',
-    },
-    Color::Empty => ' ',
-  }
 }
