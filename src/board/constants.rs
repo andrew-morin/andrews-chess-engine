@@ -28,6 +28,7 @@ pub const INITIAL_BOARD: Board = [
 pub const INITIAL_GAME_STATE: GameState = GameState {
   board: INITIAL_BOARD,
   turn: Color::White,
+  move_list: vec!(),
 };
 
 pub const MAILBOX: [Option<usize>; 120] = [

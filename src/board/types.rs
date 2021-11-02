@@ -69,4 +69,5 @@ pub struct GameState {
   #[serde(with = "BigArray")]
   pub board: Board,
   pub turn: Color,
+  pub move_list: Vec<Move>,
 }

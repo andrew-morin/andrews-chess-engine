@@ -31,31 +31,27 @@ const SQUARE_IMAGE_MAP = {
   },
 };
 
-const gameState = wasm.get_initial_game_state();
-const pseudoLegalMoves = wasm.get_pseudo_legal_moves(gameState);
+let gameState = wasm.get_initial_game_state();
+let pseudoLegalMoves = wasm.get_pseudo_legal_moves(gameState);
 
-const mainElement = document.getElementById('main');
-const table = document.createElement('table');
-table.classList.add('board');
-const tbody = document.createElement('tbody');
-
-let row;
 gameState.board.forEach((square, index) => {
-  const fileIndex = index % 8;
-  if (fileIndex === 0) {
-    row = document.createElement('tr');
-  }
+  const rankIndex = Math.floor(index / 8);
+  const row = document.querySelector(`#rankIndex${rankIndex}`);
 
   const cell = square.empty ? document.createElement('td') : getSquareCell(square);
   cell.dataset.index = index;
-  cell.addEventListener('click', getOnClick(index, square));
+  cell.addEventListener('click', getOnClick(index));
   row.appendChild(cell);
-
-  tbody.appendChild(row);
 });
 
-table.appendChild(tbody);
-mainElement.appendChild(table);
+function updateBoard(move) {
+  const targetCell = document.querySelector(`[data-index="${move.to}"]`);
+  if (targetCell.firstChild) {
+    targetCell.removeChild(targetCell.firstChild);
+  }
+  const sourceCell = document.querySelector(`[data-index="${move.from}"]`);
+  targetCell.appendChild(sourceCell.firstChild);
+}
 
 let selectedPiece = null;
 let validTargetSquares = null;
@@ -67,6 +63,12 @@ document.addEventListener('click', () => {
   validTargetSquares = null;
   updateValidCells(oldSelectedPiece, oldValidTargetSquares);
 });
+
+function updateGameState(_gameState) {
+  gameState = _gameState;
+  pseudoLegalMoves = wasm.get_pseudo_legal_moves(_gameState);
+  console.log(pseudoLegalMoves);
+}
 
 function getPieceImage(square) {
   return SQUARE_IMAGE_MAP[square.color][square.piece];
@@ -81,15 +83,21 @@ function getSquareCell(square) {
   return cell;
 }
 
-function getOnClick(index, square) {
+function getOnClick(index) {
   return (event) => {
+    const square = gameState.board[index];
     const oldValidTargetSquares = validTargetSquares;
     const oldSelectedPiece = selectedPiece;
-    if (square.empty || square.color !== gameState.turn || index === selectedPiece) {
+    if (selectedPiece != null && validTargetSquares.includes(index)) {
+      const move = pseudoLegalMoves.find(
+        (_move) => _move.from === selectedPiece && _move.to === index,
+      );
+      gameState = wasm.perform_move(gameState, move);
+      updateGameState(gameState);
+      updateBoard(move);
       selectedPiece = null;
       validTargetSquares = null;
-    } else if (selectedPiece != null && validTargetSquares.includes(index)) {
-      //  make move
+    } else if (square.empty || selectedPiece === index) {
       selectedPiece = null;
       validTargetSquares = null;
     } else {
@@ -103,22 +111,22 @@ function getOnClick(index, square) {
 function updateValidCells(oldSelectedPiece, oldValidTargetSquares) {
   if (oldValidTargetSquares != null) {
     oldValidTargetSquares.forEach((index) => {
-      const cell = tbody.querySelector(`[data-index="${index}"]`);
+      const cell = document.querySelector(`[data-index="${index}"]`);
       cell.classList.remove('target_square');
     });
   }
   if (validTargetSquares != null) {
     validTargetSquares.forEach((index) => {
-      const cell = tbody.querySelector(`[data-index="${index}"]`);
+      const cell = document.querySelector(`[data-index="${index}"]`);
       cell.classList.add('target_square');
     });
   }
   if (oldSelectedPiece != null) {
-    const cell = tbody.querySelector(`[data-index="${oldSelectedPiece}"]`);
+    const cell = document.querySelector(`[data-index="${oldSelectedPiece}"]`);
     cell.classList.remove('source_square');
   }
   if (selectedPiece != null) {
-    const cell = tbody.querySelector(`[data-index="${selectedPiece}"]`);
+    const cell = document.querySelector(`[data-index="${selectedPiece}"]`);
     cell.classList.add('source_square');
   }
 }

@@ -25,12 +25,17 @@ fn find_king(game_state: &GameState) -> usize {
   unreachable!()
 }
 
-pub fn perform_move(mut game_state: GameState, _move: Move, mut move_list: Vec<Move>) -> (GameState, Vec<Move>) {
+pub fn perform_move(mut game_state: GameState, _move: Move) -> GameState {
   let Move { from, to, .. } = _move;
   game_state.board[to] = EMPTY_SQUARE;
   game_state.board.swap(from, to);
-  move_list.push(_move);
-  (game_state, move_list)
+  game_state.move_list.push(_move);
+  game_state.turn = match game_state.turn {
+    Color::White => Color::Black,
+    Color::Black => Color::White,
+    Color::Empty => unreachable!(),
+  };
+  game_state
 }
 
 pub fn undo_last_move(mut game_state: GameState, mut move_list: Vec<Move>) -> (GameState, Vec<Move>) {

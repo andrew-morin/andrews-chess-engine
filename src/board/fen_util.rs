@@ -50,7 +50,7 @@ pub fn get_game_state_from_fen(fen: &str) -> GameState {
     None => panic!("Invalid FEN: '{}', ended too early", fen),
   };
 
-  GameState { board, turn }
+  GameState { board, turn, move_list: vec!() }
 }
 
 pub fn get_square_from_index(index: usize) -> String {
