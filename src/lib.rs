@@ -28,10 +28,10 @@ pub fn get_pseudo_legal_moves(game_state: JsValue) -> JsValue {
 }
 
 #[wasm_bindgen]
-pub fn perform_move(game_state: JsValue, _move: JsValue) -> JsValue {
+pub fn perform_move(game_state: JsValue, next_move: JsValue) -> JsValue {
   let game_state: GameState = game_state.into_serde().unwrap();
-  let _move: Move = _move.into_serde().unwrap();
-  let game_state = board::perform_move(game_state, _move);
+  let next_move: Move = next_move.into_serde().unwrap();
+  let game_state = board::perform_move(game_state, next_move);
   return JsValue::from_serde(&game_state).unwrap();
 }
 

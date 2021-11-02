@@ -3,8 +3,7 @@ pub mod constants;
 pub mod fen_util;
 
 use constants::*;
-use fen_util::*;
-use types::{Board, Color, GameState, Move, Piece, Square};
+use types::{Color, GameState, Move, Piece, Square};
 
 const CARDINAL_MAILBOX_DIRECTION_OFFSETS: [usize; 2] = [1, 10];
 const DIAGONAL_MAILBOX_DIRECTION_OFFSETS: [usize; 2] = [9, 11];
@@ -25,11 +24,11 @@ fn find_king(game_state: &GameState) -> usize {
   unreachable!()
 }
 
-pub fn perform_move(mut game_state: GameState, _move: Move) -> GameState {
-  let Move { from, to, .. } = _move;
+pub fn perform_move(mut game_state: GameState, next_move: Move) -> GameState {
+  let Move { from, to, .. } = next_move;
   game_state.board[to] = EMPTY_SQUARE;
   game_state.board.swap(from, to);
-  game_state.move_list.push(_move);
+  game_state.move_list.push(next_move);
   game_state.turn = match game_state.turn {
     Color::White => Color::Black,
     Color::Black => Color::White,
@@ -39,8 +38,8 @@ pub fn perform_move(mut game_state: GameState, _move: Move) -> GameState {
 }
 
 pub fn undo_last_move(mut game_state: GameState, mut move_list: Vec<Move>) -> (GameState, Vec<Move>) {
-  if let Some(_move) = move_list.pop() {
-    let Move { from, to, capture, captured_square, .. } = _move;
+  if let Some(last_move) = move_list.pop() {
+    let Move { from, to, capture, captured_square, .. } = last_move;
     if capture {
       game_state.board[from] = captured_square;
     }
