@@ -8,12 +8,12 @@
 
 .board tr:nth-child(even) td:nth-child(even),
 .board tr:nth-child(odd) td:nth-child(odd) {
-  background: #ffce9e;
+  background-color: #ffce9e;
 }
 
 .board tr:nth-child(odd) td:nth-child(even),
 .board tr:nth-child(even) td:nth-child(odd) {
-  background: #d18b47;
+  background-color: #d18b47;
 }
 
 .board td {
@@ -27,4 +27,19 @@
 .board td img {
   height: 5rem;
   display: block;
+}
+
+.board tr:nth-child(even) td:nth-child(even).source_square,
+.board tr:nth-child(odd) td:nth-child(odd).source_square {
+  background-color: #dfb48a;
+}
+
+.board tr:nth-child(odd) td:nth-child(even).source_square,
+.board tr:nth-child(even) td:nth-child(odd).source_square {
+  background-color: #b67938;
+}
+
+.board td.target_square {
+  background-image: -webkit-radial-gradient(circle, rgba(0,0,0,0.3) 35%, rgba(0,0,0,0) 35%);
+  background-blend-mode: multiply;
 }

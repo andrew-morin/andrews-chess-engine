@@ -39,7 +39,7 @@ pub struct Square {
 
 pub type Board = [Square; 64];
 
-#[derive(Debug, Default)]
+#[derive(Serialize, Deserialize, Debug, Default)]
 pub struct Move {
   pub from: usize,
   pub to: usize,

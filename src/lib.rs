@@ -7,6 +7,7 @@ mod engine;
 
 use board::constants::*;
 use board::types::*;
+use board::*;
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
@@ -15,9 +16,16 @@ pub fn print_board() -> String {
 }
 
 #[wasm_bindgen]
-pub fn get_initial_board() -> JsValue {
+pub fn get_initial_game_state() -> JsValue {
   let initial_game_state = INITIAL_GAME_STATE;
   JsValue::from_serde(&initial_game_state).unwrap()
+}
+
+#[wasm_bindgen]
+pub fn get_pseudo_legal_moves(game_state: JsValue) -> JsValue {
+  let game_state: GameState = game_state.into_serde().unwrap();
+  let moves = generate_pseudo_legal_moves(&game_state);
+  return JsValue::from_serde(&moves).unwrap();
 }
 
 fn board_to_fen_string(board: Board) -> String {
