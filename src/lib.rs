@@ -42,3 +42,13 @@ pub fn perform_move(game_state: JsValue, next_move: JsValue) -> JsValue {
   let game_state = board::perform_move(game_state, next_move);
   return JsValue::from_serde(&game_state).unwrap();
 }
+
+#[wasm_bindgen]
+pub struct InCheckReturn (pub bool, pub usize);
+
+#[wasm_bindgen]
+pub fn in_check(game_state: JsValue) -> InCheckReturn {
+  let game_state: GameState = game_state.into_serde().unwrap();
+  let (b, i) = board::in_check(&game_state, game_state.turn);
+  InCheckReturn(b, i)
+}

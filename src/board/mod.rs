@@ -10,16 +10,17 @@ const DIAGONAL_MAILBOX_DIRECTION_OFFSETS: [usize; 2] = [9, 11];
 const ALL_MAILBOX_DIRECTION_OFFSETS: [usize; 4] = [1, 9, 10, 11];
 const KNIGHT_MAILBOX_DIRECTION_OFFSETS: [usize; 4] = [8, 12, 19, 21];
 
-pub fn in_check(game_state: &GameState, color: Color) -> bool {
+pub fn in_check(game_state: &GameState, color: Color) -> (bool, usize) {
   let king_index = find_king(game_state, color);
   if let Some(king_index) = king_index {
     let attack_moves = generate_pseudo_legal_moves_inner(game_state, color.opposite(), true);
-    return attack_moves.iter().any(|_move| {
+    let is_in_check = attack_moves.iter().any(|_move| {
       let result = _move.to == king_index;
       result
-    })
+    });
+    return (is_in_check, king_index)
   }
-  true
+  (true, 0)
 }
 
 fn find_king(game_state: &GameState, color: Color) -> Option<usize> {
@@ -59,7 +60,7 @@ pub fn generate_legal_moves(game_state: &GameState) -> Vec<Move> {
   pseudo_legal_moves.into_iter().filter(|&_move| {
     let mut game_state_clone = game_state.clone();
     game_state_clone = perform_move(game_state_clone, _move);
-    let result = in_check(&game_state_clone, game_state.turn);
+    let (result, _) = in_check(&game_state_clone, game_state.turn);
     !result
   }).collect()
 }
@@ -229,7 +230,7 @@ mod state_tests {
   #[test]
   fn in_check_test() {
     let game_state = get_game_state_from_fen("rnbqkbnr/ppp1pppp/3p4/1B6/8/4P3/PPPP1PPP/RNBQK1NR w KQkq -");
-    assert_eq!(in_check(&game_state, Color::Black), true);
+    assert_eq!(in_check(&game_state, Color::Black), (true, 4));
   }
 
   #[test]

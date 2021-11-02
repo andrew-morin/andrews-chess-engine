@@ -61,7 +61,7 @@ document.addEventListener('click', () => {
   const oldValidTargetSquares = validTargetSquares;
   selectedPiece = null;
   validTargetSquares = null;
-  updateValidCells(oldSelectedPiece, oldValidTargetSquares);
+  updateCellClasses(oldSelectedPiece, oldValidTargetSquares);
 });
 
 function updateGameState(_gameState) {
@@ -103,12 +103,12 @@ function getOnClick(index) {
     } else {
       updateSelectedPiece(index);
     }
-    updateValidCells(oldSelectedPiece, oldValidTargetSquares);
+    updateCellClasses(oldSelectedPiece, oldValidTargetSquares, true);
     event.stopPropagation();
   };
 }
 
-function updateValidCells(oldSelectedPiece, oldValidTargetSquares) {
+function updateCellClasses(oldSelectedPiece, oldValidTargetSquares, checkForCheck) {
   if (oldValidTargetSquares != null) {
     oldValidTargetSquares.forEach((index) => {
       const cell = document.querySelector(`[data-index="${index}"]`);
@@ -128,6 +128,19 @@ function updateValidCells(oldSelectedPiece, oldValidTargetSquares) {
   if (selectedPiece != null) {
     const cell = document.querySelector(`[data-index="${selectedPiece}"]`);
     cell.classList.add('source_square');
+  }
+  const checkedKing = document.querySelector('.king_check');
+  if (checkedKing) {
+    checkedKing.classList.remove('king_check');
+  }
+  if (checkForCheck) {
+    const inCheckReturn = wasm.in_check(gameState);
+    const inCheck = inCheckReturn[0];
+    const kingIndex = inCheckReturn[1];
+    if (inCheck) {
+      const cell = document.querySelector(`[data-index="${kingIndex}"]`);
+      cell.classList.add('king_check');
+    }
   }
 }
 

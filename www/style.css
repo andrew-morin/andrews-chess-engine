@@ -40,6 +40,17 @@
 }
 
 .board td.target_square {
+  background-image: radial-gradient(circle, rgba(0,0,0,0.3) 35%, rgba(0,0,0,0) 35%);
   background-image: -webkit-radial-gradient(circle, rgba(0,0,0,0.3) 35%, rgba(0,0,0,0) 35%);
   background-blend-mode: multiply;
+}
+
+.board tr:nth-child(even) td:nth-child(even).king_check,
+.board tr:nth-child(odd) td:nth-child(odd).king_check {
+  background: -webkit-radial-gradient(circle, red, #ffce9e);
+}
+
+.board tr:nth-child(odd) td:nth-child(even).king_check,
+.board tr:nth-child(even) td:nth-child(odd).king_check {
+  background: -webkit-radial-gradient(circle, red, #b67938);
 }
