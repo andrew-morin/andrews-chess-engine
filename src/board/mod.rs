@@ -198,7 +198,7 @@ fn get_piece_mailbox_direction_offsets(piece: &Piece) -> &[usize] {
 
 #[cfg(test)]
 mod fen_tests {
-  use super::*;
+  use super::fen_util::*;
   use crate::board_to_fen_string;
 
   #[test]
@@ -213,6 +213,7 @@ mod fen_tests {
 #[cfg(test)]
 mod perft_tests {
   use super::*;
+  use super::fen_util::*;
   use crate::board::constants::INITIAL_GAME_STATE;
 
   #[test]
