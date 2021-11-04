@@ -363,6 +363,20 @@ mod perft_tests {
     assert_eq!(game_states.len(), 191);
   }
 
+  #[test]
+  fn perf_pos_4() {
+    let game_state = get_game_state_from_fen("r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1");
+    let moves = generate_legal_moves(&game_state);
+    assert_eq!(moves.len(), 6);
+  }
+
+  #[test]
+  fn perf_pos_4_depth_2() {
+    let game_state = get_game_state_from_fen("r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1");
+    let game_states = generate_legal_moves_at_depth(&game_state, 2);
+    assert_eq!(game_states.len(), 264);
+  }
+
   fn generate_move_map(game_states: &Vec<GameState>) -> HashMap<String, usize> {
     let mut move_map: HashMap<String, usize> = HashMap::new();
     game_states.iter().for_each(|game_state| {
