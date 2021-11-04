@@ -9,6 +9,12 @@ use board::types::*;
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
+pub fn get_game_state_from_fen(fen: &str) -> JsValue {
+  let initial_game_state = board::fen_util::get_game_state_from_fen(fen);
+  JsValue::from_serde(&initial_game_state).unwrap()
+}
+
+#[wasm_bindgen]
 pub fn get_initial_game_state() -> JsValue {
   let initial_game_state = GameState::default();
   JsValue::from_serde(&initial_game_state).unwrap()

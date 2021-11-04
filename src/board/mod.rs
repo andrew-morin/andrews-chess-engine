@@ -1,5 +1,6 @@
 pub mod types;
 pub mod constants;
+pub mod fen_util;
 
 use constants::*;
 use types::*;
@@ -54,9 +55,13 @@ pub fn perform_move(mut game_state: GameState, next_move: Move) -> GameState {
     }
   }
   game_state.move_list.push(next_move);
-  game_state.turn = game_state.turn.opposite();
 
   game_state = update_castle_availability(game_state, from, to);
+
+  if next_move.en_passant {
+    let captured_pawn_index = if from > to { to + 8 } else { to - 8 };
+    game_state.board[captured_pawn_index] = EMPTY_SQUARE;
+  }
 
   if next_move.two_square_pawn_move {
     game_state.en_passant_index = Some((from + to) / 2);
@@ -64,6 +69,7 @@ pub fn perform_move(mut game_state: GameState, next_move: Move) -> GameState {
     game_state.en_passant_index = None;
   }
 
+  game_state.turn = game_state.turn.opposite();
   game_state
 }
 
@@ -101,12 +107,28 @@ pub fn generate_legal_moves(game_state: &GameState) -> Vec<Move> {
     let attack_moves = generate_pseudo_legal_moves_inner(&game_state_clone, game_state_clone.turn, true);
     if _move.castle {
       let check_index = (_move.from + _move.to) / 2;
-      let castle_out_or_through_check = attack_moves.iter().any(|attack| attack.to == check_index || attack.to == _move.from);
+      let castle_out_or_through_check = attack_moves.iter().any(|attack| [_move.from, _move.to, check_index].contains(&attack.to));
       return !castle_out_or_through_check;
     }
     let (is_in_check, _) = in_check(&game_state_clone, game_state_clone.turn.opposite());
     !is_in_check
   }).collect()
+}
+
+pub fn generate_legal_moves_at_depth(game_state: &GameState, depth: usize) -> Vec<GameState> {
+  let moves = generate_legal_moves(&game_state);
+  let game_states: Vec<GameState> = moves.iter().map(|_move| perform_move(game_state.clone(), *_move)).collect::<Vec<GameState>>();
+
+  let mut result: Vec<GameState> = vec!();
+  game_states.iter().for_each(|game_state| {
+    let next_move_list = generate_legal_moves(&game_state);
+    for next_move in next_move_list.iter() {
+      let new_game_state = perform_move(game_state.clone(), *next_move);
+      result.push(new_game_state);
+    }
+  });
+
+  result
 }
 
 pub fn generate_pseudo_legal_moves(game_state: &GameState) -> Vec<Move> {
@@ -293,7 +315,6 @@ fn get_piece_mailbox_direction_offsets(piece: &Piece) -> &[usize] {
 mod state_tests {
   use super::*;
   use super::fen_util::*;
-  use super::types::*;
 
   #[test]
   fn in_check_test() {
@@ -304,7 +325,6 @@ mod state_tests {
 
 #[cfg(test)]
 mod perft_tests {
-  mod fen_util;
   use std::collections::HashMap;
   use super::*;
   use super::fen_util::*;
@@ -320,10 +340,30 @@ mod perft_tests {
     let game_state = get_game_state_from_fen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq -");
     let moves = generate_legal_moves(&game_state);
     assert_eq!(moves.len(), 48);
+  }
 
-    let mut game_states: Vec<GameState> = moves.iter().map(|_move| perform_move(game_state.clone(), *_move)).collect::<Vec<GameState>>();
-    game_states = generate_nested_moves(game_states);
+  #[test]
+  fn perf_pos_2_depth_2() {
+    let game_state = get_game_state_from_fen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq -");
+    let game_states = generate_legal_moves_at_depth(&game_state, 2);
+    assert_eq!(game_states.len(), 2039);
+  }
 
+  #[test]
+  fn perf_pos_3() {
+    let game_state = get_game_state_from_fen("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - -");
+    let moves = generate_legal_moves(&game_state);
+    assert_eq!(moves.len(), 14);
+  }
+
+  #[test]
+  fn perf_pos_3_depth_2() {
+    let game_state = get_game_state_from_fen("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - -");
+    let game_states = generate_legal_moves_at_depth(&game_state, 2);
+    assert_eq!(game_states.len(), 191);
+  }
+
+  fn generate_move_map(game_states: &Vec<GameState>) -> HashMap<String, usize> {
     let mut move_map: HashMap<String, usize> = HashMap::new();
     game_states.iter().for_each(|game_state| {
       let first_move = game_state.move_list.get(0);
@@ -336,21 +376,6 @@ mod perft_tests {
           .or_insert(1);
       }
     });
-
-    assert_eq!(game_states.len(), 2039);
-  }
-
-  fn generate_nested_moves(game_states: Vec<GameState>) -> Vec<GameState> {
-    let mut result: Vec<GameState> = vec!();
-
-    game_states.iter().for_each(|game_state| {
-      let next_move_list = generate_legal_moves(&game_state);
-      for next_move in next_move_list.iter() {
-        let new_game_state = perform_move(game_state.clone(), *next_move);
-        result.push(new_game_state);
-      }
-    });
-
-    result
+    move_map
   }
 }
