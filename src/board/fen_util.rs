@@ -3,6 +3,7 @@ use super::types::*;
 
 pub fn get_game_state_from_fen(fen: &str) -> GameState {
   let mut board: Board = INITIAL_BOARD;
+  let mut castle = CastleAvailability::none();
   let mut index: usize = 0;
   let mut chars = fen.chars();
   loop {
@@ -49,8 +50,32 @@ pub fn get_game_state_from_fen(fen: &str) -> GameState {
     Some(c) => panic!("Invalid FEN: '{}', invalid active color '{}'", fen, c),
     None => panic!("Invalid FEN: '{}', ended too early", fen),
   };
+  let c = chars.next();
+  if c == None {
+    return GameState { board, turn, move_list: vec!(), castle };
+  }
+  let c = c.unwrap();
+  if c != ' ' {
+    panic!("Invalid FEN: '{}', invalid character '{}' ", fen, c);
+  }
 
-  GameState { board, turn, move_list: vec!() }
+  let mut c = chars.next();
+  while c != None {
+    let castleChar = c.unwrap();
+    if castleChar == '-' {
+      break;
+    }
+
+    match castleChar {
+      'K' => castle.white_kingside = true,
+      'Q' => castle.white_queenside = true,
+      'k' => castle.black_kingside = true,
+      'q' => castle.black_queenside = true,
+      _ => panic!("Invalid FEN: '{}', invalid character '{}' ", fen, castleChar),
+    }
+  }
+
+  GameState { board, turn, move_list: vec!(), castle }
 }
 
 pub fn get_square_from_index(index: usize) -> String {
@@ -69,7 +94,39 @@ pub fn get_square_from_index(index: usize) -> String {
   file.to_string() + &rank.to_string()
 }
 
-pub fn board_to_fen_string(board: Board) -> String {
+fn game_state_to_fen_string(game_state: &GameState) -> String {
+  let board = board_to_fen_string(&game_state.board);
+  let turn = match game_state.turn {
+    Color::Black => 'b',
+    _ => 'w',
+  };
+  let castle = castle_availability_to_fen(&game_state.castle);
+  format!("{} {} {}", board, turn, castle)
+}
+
+fn castle_availability_to_fen(castle_availability: &CastleAvailability) -> String {
+  let mut output = String::new();
+  if castle_availability.white_kingside {
+    output.push('K');
+  }
+  if castle_availability.white_queenside {
+    output.push('Q');
+  }
+  if castle_availability.black_kingside {
+    output.push('k');
+  }
+  if castle_availability.black_queenside {
+    output.push('q');
+  }
+
+  if output.is_empty() {
+    return '-'.to_string();
+  }
+
+  output
+}
+
+fn board_to_fen_string(board: &Board) -> String {
   let mut board_str = String::new();
   let mut space_count = 0;
   for (index, square) in board.iter().enumerate() {
@@ -127,12 +184,11 @@ fn get_fen_char_from_square(square: &Square) -> char {
 #[cfg(test)]
 mod tests {
   use super::*;
-  use crate::board::*;
 
   #[test]
   fn board_to_fen() {
     let game_state = get_game_state_from_fen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq -");
-    let fen = board_to_fen_string(game_state.board);
+    let fen = board_to_fen_string(&game_state.board);
 
     assert_eq!(fen, "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R");
   }

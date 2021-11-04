@@ -25,12 +25,6 @@ pub const INITIAL_BOARD: Board = [
   WHITE_ROOK  , WHITE_KNIGHT, WHITE_BISHOP, WHITE_QUEEN , WHITE_KING  , WHITE_BISHOP, WHITE_KNIGHT, WHITE_ROOK  ,
 ];
 
-pub const INITIAL_GAME_STATE: GameState = GameState {
-  board: INITIAL_BOARD,
-  turn: Color::White,
-  move_list: vec!(),
-};
-
 pub const MAILBOX: [Option<usize>; 120] = [
   None, None,     None,     None,     None,     None,     None,     None,     None,     None,
   None, None,     None,     None,     None,     None,     None,     None,     None,     None,

@@ -1,4 +1,5 @@
 use serde::{Serialize, Deserialize};
+use super::constants::INITIAL_BOARD;
 
 big_array! { BigArray; }
 
@@ -75,9 +76,51 @@ impl Move {
 }
 
 #[derive(Serialize, Deserialize, Clone)]
+pub struct CastleAvailability {
+  pub white_kingside: bool,
+  pub white_queenside: bool,
+  pub black_kingside: bool,
+  pub black_queenside: bool,
+}
+
+impl CastleAvailability {
+  pub fn none() -> Self {
+    CastleAvailability {
+      white_kingside: false,
+      white_queenside: false,
+      black_kingside: false,
+      black_queenside: false,
+    }
+  }
+}
+
+impl Default for CastleAvailability {
+  fn default() -> Self {
+    CastleAvailability {
+      white_kingside: true,
+      white_queenside: true,
+      black_kingside: true,
+      black_queenside: true,
+    }
+  }
+}
+
+#[derive(Serialize, Deserialize, Clone)]
 pub struct GameState {
   #[serde(with = "BigArray")]
   pub board: Board,
   pub turn: Color,
   pub move_list: Vec<Move>,
+  pub castle: CastleAvailability,
+}
+
+impl Default for GameState {
+  fn default() -> Self {
+    GameState {
+      board: INITIAL_BOARD,
+      turn: Color::White,
+      move_list: vec!(),
+      castle: Default::default(),
+    }
+  }
 }

@@ -4,6 +4,13 @@ pub mod fen_util;
 
 use constants::*;
 use types::{Color, GameState, Move, Piece, Square};
+use wasm_bindgen::prelude::*;
+
+#[wasm_bindgen]
+extern "C" {
+  #[wasm_bindgen(js_namespace = console)]
+  fn log(s: &str);
+}
 
 const CARDINAL_MAILBOX_DIRECTION_OFFSETS: [usize; 2] = [1, 10];
 const DIAGONAL_MAILBOX_DIRECTION_OFFSETS: [usize; 2] = [9, 11];
@@ -37,19 +44,46 @@ pub fn perform_move(mut game_state: GameState, next_move: Move) -> GameState {
   let Move { from, to, .. } = next_move;
   game_state.board[to] = EMPTY_SQUARE;
   game_state.board.swap(from, to);
+  if next_move.castle {
+    if to == 2 {
+      game_state.board.swap(0, 3);
+    } else if to == 6 {
+      game_state.board.swap(5, 7);
+    } else if to == 58 {
+      game_state.board.swap(56, 59);
+    } else if to == 62 {
+      game_state.board.swap(61, 63);
+    }
+  }
   game_state.move_list.push(next_move);
   game_state.turn = game_state.turn.opposite();
+
+  game_state = update_castle_availability(game_state, from, to);
+
   game_state
 }
 
-pub fn undo_last_move(mut game_state: GameState) -> GameState {
-  if let Some(last_move) = game_state.move_list.pop() {
-    let Move { from, to, capture, captured_square, .. } = last_move;
-    if capture {
-      game_state.board[from] = captured_square;
-    }
-    game_state.board.swap(from, to);
+fn update_castle_availability(mut game_state: GameState, from: usize, to: usize) -> GameState {
+  let black_king_moved = from == 4;
+  let black_queen_rook_moved_or_captured = from == 0 || to == 0;
+  let black_king_rook_moved_or_captured = from == 7 || to == 7;
+  let white_king_moved = from == 60;
+  let white_queen_rook_moved_or_captured = from == 56 || to == 56;
+  let white_king_rook_moved_or_captured = from == 63 || to == 63;
+
+  if black_king_moved || black_king_rook_moved_or_captured {
+    game_state.castle.black_kingside = false;
   }
+  if black_king_moved || black_queen_rook_moved_or_captured {
+    game_state.castle.black_queenside = false;
+  }
+  if white_king_moved || white_king_rook_moved_or_captured {
+    game_state.castle.white_kingside = false;
+  }
+  if white_king_moved || white_queen_rook_moved_or_captured {
+    game_state.castle.white_queenside = false;
+  }
+
   game_state
 }
 
@@ -81,10 +115,13 @@ fn generate_pseudo_legal_moves_inner(game_state: &GameState, color: Color, attac
         Piece::King | Piece::Knight => gen_moves_piece(&game_state, color, &square.piece, index, false, attack_only, moves),
         Piece::Empty => moves,
       };
+      if !attack_only && square.piece == Piece::King {
+        moves = gen_castle_moves(&game_state, color, moves);
+      }
     }
   }
 
-  return moves;
+  moves
 }
 
 fn gen_moves_pawn(game_state: &GameState, color: Color, index: usize, attack_only: bool, mut moves: Vec<Move>) -> Vec<Move> {
@@ -186,6 +223,25 @@ fn gen_moves_slide_direction(game_state: &GameState, color: Color, index: usize,
   moves
 }
 
+fn gen_castle_moves(game_state: &GameState, color: Color, mut moves: Vec<Move>) -> Vec<Move> {
+  if color == Color::Black {
+    if game_state.castle.black_queenside && game_state.board[1].empty && game_state.board[2].empty && game_state.board[3].empty {
+      moves.push(Move::castle(4, 2));
+    }
+    if game_state.castle.black_kingside && game_state.board[5].empty && game_state.board[6].empty {
+      moves.push(Move::castle(4, 6));
+    }
+  } else {
+    if game_state.castle.white_queenside && game_state.board[57].empty && game_state.board[58].empty && game_state.board[59].empty {
+      moves.push(Move::castle(60, 58));
+    }
+    if game_state.castle.white_kingside && game_state.board[61].empty && game_state.board[62].empty {
+      moves.push(Move::castle(60, 62));
+    }
+  }
+  moves
+}
+
 fn gen_move_from_mailbox(game_state: &GameState, color: Color, target_square_mailbox_index: usize, start_index: usize) -> Option<Move> {
   let target_square_index = MAILBOX[target_square_mailbox_index];
   match target_square_index {
@@ -245,11 +301,10 @@ mod state_tests {
 mod perft_tests {
   use super::*;
   use super::fen_util::*;
-  use crate::board::constants::INITIAL_GAME_STATE;
 
   #[test]
   fn generate_first_move() {
-    let moves = generate_pseudo_legal_moves(&INITIAL_GAME_STATE);
+    let moves = generate_pseudo_legal_moves(&GameState::default());
     assert_eq!(moves.len(), 20);
   }
 

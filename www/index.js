@@ -51,6 +51,27 @@ function updateBoard(move) {
   }
   const sourceCell = document.querySelector(`[data-index="${move.from}"]`);
   targetCell.appendChild(sourceCell.firstChild);
+  if (move.castle) {
+    let rookFrom;
+    let rookTo;
+    if (move.to === 2) {
+      rookFrom = 0;
+      rookTo = 3;
+    } else if (move.to === 6) {
+      rookFrom = 7;
+      rookTo = 5;
+    } else if (move.to === 58) {
+      rookFrom = 56;
+      rookTo = 59;
+    } else if (move.to === 62) {
+      rookFrom = 63;
+      rookTo = 61;
+    }
+    const sourceRookCell = document.querySelector(`[data-index="${rookFrom}"]`);
+    const targetRookCell = document.querySelector(`[data-index="${rookTo}"]`);
+    targetRookCell.appendChild(sourceRookCell.firstChild);
+    // sourceCell.removeChild(sourceCell.firstChild);
+  }
 }
 
 let selectedPiece = null;
@@ -67,7 +88,6 @@ document.addEventListener('click', () => {
 function updateGameState(_gameState) {
   gameState = _gameState;
   legalMoves = wasm.get_legal_moves(_gameState);
-  console.log(legalMoves);
 }
 
 function getPieceImage(square) {

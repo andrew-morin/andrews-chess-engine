@@ -5,19 +5,12 @@ extern crate wasm_bindgen;
 mod board;
 mod engine;
 
-use board::constants::*;
-use board::fen_util::*;
 use board::types::*;
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
-pub fn print_board() -> String {
-  board_to_fen_string(board::constants::INITIAL_BOARD)
-}
-
-#[wasm_bindgen]
 pub fn get_initial_game_state() -> JsValue {
-  let initial_game_state = INITIAL_GAME_STATE;
+  let initial_game_state = GameState::default();
   JsValue::from_serde(&initial_game_state).unwrap()
 }
 
