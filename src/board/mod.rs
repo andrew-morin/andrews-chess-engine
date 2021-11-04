@@ -1,9 +1,8 @@
 pub mod types;
 pub mod constants;
-pub mod fen_util;
 
 use constants::*;
-use types::{Color, GameState, Move, Piece, Square};
+use types::*;
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
@@ -32,7 +31,6 @@ pub fn in_check(game_state: &GameState, color: Color) -> (bool, usize) {
 
 fn find_king(game_state: &GameState, color: Color) -> Option<usize> {
   for (index, square) in game_state.board.iter().enumerate() {
-    println!("square: {:?}", square);
     if square.piece == Piece::King && square.color == color {
       return Some(index);
     }
@@ -59,6 +57,12 @@ pub fn perform_move(mut game_state: GameState, next_move: Move) -> GameState {
   game_state.turn = game_state.turn.opposite();
 
   game_state = update_castle_availability(game_state, from, to);
+
+  if next_move.two_square_pawn_move {
+    game_state.en_passant_index = Some((from + to) / 2);
+  } else {
+    game_state.en_passant_index = None;
+  }
 
   game_state
 }
@@ -94,8 +98,14 @@ pub fn generate_legal_moves(game_state: &GameState) -> Vec<Move> {
   pseudo_legal_moves.into_iter().filter(|&_move| {
     let mut game_state_clone = game_state.clone();
     game_state_clone = perform_move(game_state_clone, _move);
-    let (result, _) = in_check(&game_state_clone, game_state.turn);
-    !result
+    let attack_moves = generate_pseudo_legal_moves_inner(&game_state_clone, game_state_clone.turn, true);
+    if _move.castle {
+      let check_index = (_move.from + _move.to) / 2;
+      let castle_out_or_through_check = attack_moves.iter().any(|attack| attack.to == check_index || attack.to == _move.from);
+      return !castle_out_or_through_check;
+    }
+    let (is_in_check, _) = in_check(&game_state_clone, game_state_clone.turn.opposite());
+    !is_in_check
   }).collect()
 }
 
@@ -136,11 +146,14 @@ fn gen_moves_pawn(game_state: &GameState, color: Color, index: usize, attack_onl
     }
   }
 
-  let attack_indices = get_pawn_attack_indices(&color, index);
-  for attack_index in attack_indices {
-    let target_square = &game_state.board[attack_index];
-    if !target_square.empty && game_state.board[attack_index].color != color {
-      moves.push(Move::capture(index, attack_index, *target_square));
+  let mailbox_attack_indices = get_pawn_mailbox_attack_indices(&color, index);
+  let en_passant_index = game_state.en_passant_index.unwrap_or(100);
+  for mailbox_attack_index in mailbox_attack_indices {
+    if let Some(attack_index) = MAILBOX[mailbox_attack_index] {
+      let target_square = &game_state.board[attack_index];
+      if attack_index == en_passant_index || !target_square.empty && game_state.board[attack_index].color != color {
+        moves.push(Move::en_passant(index, attack_index));
+      }
     }
   }
 
@@ -155,11 +168,12 @@ fn get_pawn_move_index(turn: &Color, index: usize) -> usize {
   }
 }
 
-fn get_pawn_attack_indices(turn: &Color, index: usize) -> [usize; 2] {
+fn get_pawn_mailbox_attack_indices(turn: &Color, index: usize) -> [usize; 2] {
+  let mailbox_index = BOARD_INDEX_TO_MAILBOX_INDEX[index];
   if turn == &Color::White {
-    [index - 7, index - 9]
+    [mailbox_index - 9, mailbox_index - 11]
   } else {
-    [index + 7, index + 9]
+    [mailbox_index + 9, mailbox_index + 11]
   }
 }
 
@@ -248,21 +262,19 @@ fn gen_move_from_mailbox(game_state: &GameState, color: Color, target_square_mai
     // Off the board
     None => None,
     Some(target_square_index) => {
-      let target_square = &game_state.board[target_square_index];
-      gen_move_to_index(game_state, color, target_square, start_index, target_square_index)
+      gen_move_to_index(game_state, color, start_index, target_square_index)
     }
   }
 }
 
-fn gen_move_to_index(game_state: &GameState, color: Color, target_square: &Square, from: usize, to: usize) -> Option<Move> {
+fn gen_move_to_index(game_state: &GameState, color: Color, from: usize, to: usize) -> Option<Move> {
+  let target_square = &game_state.board[to];
   if target_square.empty {
     Some(Move::new(from, to))
+  } else if target_square.color != color {
+    Some(Move::capture(from, to))
   } else {
-    if target_square.color != color {
-      Some(Move::capture(from, to, *target_square))
-    } else {
-      None
-    }
+    None
   }
 }
 
@@ -288,30 +300,57 @@ mod state_tests {
     let game_state = get_game_state_from_fen("rnbqkbnr/ppp1pppp/3p4/1B6/8/4P3/PPPP1PPP/RNBQK1NR w KQkq -");
     assert_eq!(in_check(&game_state, Color::Black), (true, 4));
   }
-
-  #[test]
-  fn legal_moves_test() {
-    let game_state = get_game_state_from_fen("rnbqkbnr/ppp1pppp/3p4/1B6/8/4P3/PPPP1PPP/RNBQK1NR w KQkq -");
-    let legal_moves = generate_legal_moves(&game_state);
-    println!("{:?}", legal_moves);
-  }
 }
 
 #[cfg(test)]
 mod perft_tests {
+  mod fen_util;
+  use std::collections::HashMap;
   use super::*;
   use super::fen_util::*;
 
   #[test]
   fn generate_first_move() {
-    let moves = generate_pseudo_legal_moves(&GameState::default());
+    let moves = generate_legal_moves(&GameState::default());
     assert_eq!(moves.len(), 20);
   }
 
   #[test]
   fn perft_pos_2() {
     let game_state = get_game_state_from_fen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq -");
-    let moves = generate_pseudo_legal_moves(&game_state);
+    let moves = generate_legal_moves(&game_state);
     assert_eq!(moves.len(), 48);
+
+    let mut game_states: Vec<GameState> = moves.iter().map(|_move| perform_move(game_state.clone(), *_move)).collect::<Vec<GameState>>();
+    game_states = generate_nested_moves(game_states);
+
+    let mut move_map: HashMap<String, usize> = HashMap::new();
+    game_states.iter().for_each(|game_state| {
+      let first_move = game_state.move_list.get(0);
+      if let Some(first_move) = first_move {
+        let from_square = get_square_from_index(first_move.from);
+        let to_square = get_square_from_index(first_move.to);
+        let key = from_square + &to_square;
+        move_map.entry(key)
+          .and_modify(|e| { *e += 1 })
+          .or_insert(1);
+      }
+    });
+
+    assert_eq!(game_states.len(), 2039);
+  }
+
+  fn generate_nested_moves(game_states: Vec<GameState>) -> Vec<GameState> {
+    let mut result: Vec<GameState> = vec!();
+
+    game_states.iter().for_each(|game_state| {
+      let next_move_list = generate_legal_moves(&game_state);
+      for next_move in next_move_list.iter() {
+        let new_game_state = perform_move(game_state.clone(), *next_move);
+        result.push(new_game_state);
+      }
+    });
+
+    result
   }
 }

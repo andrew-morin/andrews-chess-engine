@@ -1,4 +1,4 @@
-use super::types::{Board, Color, GameState, Piece, Square};
+use super::types::*;
 
 pub const EMPTY_SQUARE: Square = Square { empty: true,  color: Color::Empty, piece: Piece::Empty  };
 pub const WHITE_PAWN:   Square = Square { empty: false, color: Color::White, piece: Piece::Pawn   };

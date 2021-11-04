@@ -3,9 +3,15 @@ use super::types::*;
 
 pub fn get_game_state_from_fen(fen: &str) -> GameState {
   let mut board: Board = INITIAL_BOARD;
-  let mut castle = CastleAvailability::none();
+  let mut castle = CastleAvailability {
+    white_kingside: false,
+    white_queenside: false,
+    black_kingside: false,
+    black_queenside: false,
+  };
   let mut index: usize = 0;
   let mut chars = fen.chars();
+  let mut found_slash = true;
   loop {
     let c = chars.next();
     if c == None {
@@ -21,10 +27,20 @@ pub fn get_game_state_from_fen(fen: &str) -> GameState {
       index = end_index;
     } else {
       if c == ' ' {
+        if index != 64 {
+          panic!("Invalid FEN: '{}', board ended too early", fen);
+        }
         break;
       } else if c == '/' {
+        if index % 8 != 0 {
+          panic!("Invalid FEN: '{}', rank was too short at index {}", fen, index);
+        }
+        found_slash = true;
         continue;
+      } else if index % 8 == 0 && !found_slash {
+        panic!("Invalid FEN: '{}', rank was too long at index {}", fen, index);
       }
+      found_slash = false;
       board[index] = match c {
         'p' => BLACK_PAWN,
         'b' => BLACK_BISHOP,
@@ -52,7 +68,7 @@ pub fn get_game_state_from_fen(fen: &str) -> GameState {
   };
   let c = chars.next();
   if c == None {
-    return GameState { board, turn, move_list: vec!(), castle };
+    return GameState { board, turn, move_list: vec!(), castle, ..Default::default() };
   }
   let c = c.unwrap();
   if c != ' ' {
@@ -60,22 +76,24 @@ pub fn get_game_state_from_fen(fen: &str) -> GameState {
   }
 
   let mut c = chars.next();
-  while c != None {
-    let castleChar = c.unwrap();
-    if castleChar == '-' {
-      break;
-    }
+  if Some('-') != c {
+    while c != None {
+      let castle_char = c.unwrap();
 
-    match castleChar {
-      'K' => castle.white_kingside = true,
-      'Q' => castle.white_queenside = true,
-      'k' => castle.black_kingside = true,
-      'q' => castle.black_queenside = true,
-      _ => panic!("Invalid FEN: '{}', invalid character '{}' ", fen, castleChar),
+      match castle_char {
+        'K' => castle.white_kingside = true,
+        'Q' => castle.white_queenside = true,
+        'k' => castle.black_kingside = true,
+        'q' => castle.black_queenside = true,
+        ' ' => break,
+        _ => panic!("Invalid FEN: '{}', invalid character '{}' ", fen, castle_char),
+      };
+
+      c = chars.next();
     }
   }
 
-  GameState { board, turn, move_list: vec!(), castle }
+  GameState { board, turn, move_list: vec!(), castle, ..Default::default() }
 }
 
 pub fn get_square_from_index(index: usize) -> String {

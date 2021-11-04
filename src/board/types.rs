@@ -41,7 +41,7 @@ impl Default for Piece {
   fn default() -> Self { Piece::Empty }
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, Default)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq)]
 pub struct Square {
   pub empty: bool,
   pub color: Color,
@@ -50,13 +50,13 @@ pub struct Square {
 
 pub type Board = [Square; 64];
 
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, Default)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq)]
 pub struct Move {
   pub from: usize,
   pub to: usize,
   pub capture: bool,
+  pub en_passant: bool,
   pub castle: bool,
-  pub captured_square: Square,
   pub two_square_pawn_move: bool,
 }
 
@@ -64,8 +64,11 @@ impl Move {
   pub fn new(from: usize, to: usize) -> Move {
     Move { from, to, ..Default::default() }
   }
-  pub fn capture(from: usize, to: usize, square: Square) -> Move {
-    Move { from, to, capture: true, captured_square: square, ..Default::default() }
+  pub fn capture(from: usize, to: usize) -> Move {
+    Move { from, to, capture: true, ..Default::default() }
+  }
+  pub fn en_passant(from: usize, to: usize) -> Move {
+    Move { from, to, capture: true, en_passant: true, ..Default::default() }
   }
   pub fn castle(from: usize, to: usize) -> Move {
     Move { from, to, castle: true, ..Default::default() }
@@ -75,23 +78,12 @@ impl Move {
   }
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct CastleAvailability {
   pub white_kingside: bool,
   pub white_queenside: bool,
   pub black_kingside: bool,
   pub black_queenside: bool,
-}
-
-impl CastleAvailability {
-  pub fn none() -> Self {
-    CastleAvailability {
-      white_kingside: false,
-      white_queenside: false,
-      black_kingside: false,
-      black_queenside: false,
-    }
-  }
 }
 
 impl Default for CastleAvailability {
@@ -105,13 +97,14 @@ impl Default for CastleAvailability {
   }
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct GameState {
   #[serde(with = "BigArray")]
   pub board: Board,
   pub turn: Color,
   pub move_list: Vec<Move>,
   pub castle: CastleAvailability,
+  pub en_passant_index: Option<usize>,
 }
 
 impl Default for GameState {
@@ -121,6 +114,7 @@ impl Default for GameState {
       turn: Color::White,
       move_list: vec!(),
       castle: Default::default(),
+      en_passant_index: None,
     }
   }
 }
