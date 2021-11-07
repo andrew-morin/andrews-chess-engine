@@ -69,6 +69,10 @@ pub fn perform_move(mut game_state: GameState, next_move: Move) -> GameState {
     game_state.en_passant_index = None;
   }
 
+  if let Some(promotion_piece) = next_move.promotion_piece {
+    game_state.board[to] = Square { empty: false, color: game_state.turn, piece: promotion_piece };
+  }
+
   game_state.turn = game_state.turn.opposite();
   game_state
 }
@@ -159,11 +163,17 @@ fn generate_pseudo_legal_moves_inner(game_state: &GameState, color: Color, attac
 fn gen_moves_pawn(game_state: &GameState, color: Color, index: usize, attack_only: bool, mut moves: Vec<Move>) -> Vec<Move> {
   let one_square_move_index = get_pawn_move_index(&color, index);
   if !attack_only && game_state.board[one_square_move_index].empty {
-    moves.push(Move::new(index, one_square_move_index));
-    if color == Color::White && index >= 48 || color == Color::Black && index < 16 {
-      let two_square_move_index = get_pawn_move_index(&color, one_square_move_index);
-      if game_state.board[two_square_move_index].empty {
-        moves.push(Move::two_square_pawn_move(index, two_square_move_index));
+    if color == Color::White && one_square_move_index < 8 || color == Color::Black && one_square_move_index > 55 {
+      [Piece::Knight, Piece::Bishop, Piece::Rook, Piece::Queen].iter().for_each(|piece| {
+        moves.push(Move::promotion(index, one_square_move_index, *piece));
+      });
+    } else {
+      moves.push(Move::new(index, one_square_move_index));
+      if color == Color::White && index >= 48 || color == Color::Black && index < 16 {
+        let two_square_move_index = get_pawn_move_index(&color, one_square_move_index);
+        if game_state.board[two_square_move_index].empty {
+          moves.push(Move::two_square_pawn_move(index, two_square_move_index));
+        }
       }
     }
   }
@@ -173,8 +183,16 @@ fn gen_moves_pawn(game_state: &GameState, color: Color, index: usize, attack_onl
   for mailbox_attack_index in mailbox_attack_indices {
     if let Some(attack_index) = MAILBOX[mailbox_attack_index] {
       let target_square = &game_state.board[attack_index];
-      if attack_index == en_passant_index || !target_square.empty && game_state.board[attack_index].color != color {
+      if attack_index == en_passant_index {
         moves.push(Move::en_passant(index, attack_index));
+      } else if !target_square.empty && game_state.board[attack_index].color != color {
+        if color == Color::White && attack_index < 8 || color == Color::Black && attack_index > 55 {
+          [Piece::Knight, Piece::Bishop, Piece::Rook, Piece::Queen].iter().for_each(|piece| {
+            moves.push(Move::promotion_capture(index, attack_index, *piece));
+          });
+        } else {
+          moves.push(Move::capture(index, attack_index));
+        }
       }
     }
   }
@@ -343,37 +361,39 @@ mod perft_tests {
   }
 
   #[test]
-  fn perf_pos_2_depth_2() {
+  fn perft_pos_2_depth_2() {
     let game_state = get_game_state_from_fen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq -");
     let game_states = generate_legal_moves_at_depth(&game_state, 2);
     assert_eq!(game_states.len(), 2039);
   }
 
   #[test]
-  fn perf_pos_3() {
+  fn perft_pos_3() {
     let game_state = get_game_state_from_fen("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - -");
     let moves = generate_legal_moves(&game_state);
     assert_eq!(moves.len(), 14);
   }
 
   #[test]
-  fn perf_pos_3_depth_2() {
+  fn perft_pos_3_depth_2() {
     let game_state = get_game_state_from_fen("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - -");
     let game_states = generate_legal_moves_at_depth(&game_state, 2);
     assert_eq!(game_states.len(), 191);
   }
 
   #[test]
-  fn perf_pos_4() {
+  fn perft_pos_4() {
     let game_state = get_game_state_from_fen("r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1");
     let moves = generate_legal_moves(&game_state);
     assert_eq!(moves.len(), 6);
   }
 
   #[test]
-  fn perf_pos_4_depth_2() {
+  fn perft_pos_4_depth_2() {
     let game_state = get_game_state_from_fen("r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1");
     let game_states = generate_legal_moves_at_depth(&game_state, 2);
+    let move_map = generate_move_map(&game_states);
+    println!("{:#?}", move_map);
     assert_eq!(game_states.len(), 264);
   }
 

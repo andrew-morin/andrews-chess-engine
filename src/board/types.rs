@@ -58,6 +58,7 @@ pub struct Move {
   pub en_passant: bool,
   pub castle: bool,
   pub two_square_pawn_move: bool,
+  pub promotion_piece: Option<Piece>,
 }
 
 impl Move {
@@ -75,6 +76,12 @@ impl Move {
   }
   pub fn two_square_pawn_move(from: usize, to: usize) -> Move {
     Move { from, to, two_square_pawn_move: true, ..Default::default() }
+  }
+  pub fn promotion(from: usize, to: usize, promotion_piece: Piece) -> Move {
+    Move { from, to, promotion_piece: Some(promotion_piece), ..Default::default() }
+  }
+  pub fn promotion_capture(from: usize, to: usize, promotion_piece: Piece) -> Move {
+    Move { from, to, capture: true, promotion_piece: Some(promotion_piece), ..Default::default() }
   }
 }
 
