@@ -4,7 +4,6 @@ pub mod fen_util;
 
 use constants::*;
 use types::*;
-use wasm_bindgen::prelude::*;
 
 const CARDINAL_MAILBOX_DIRECTION_OFFSETS: [usize; 2] = [1, 10];
 const DIAGONAL_MAILBOX_DIRECTION_OFFSETS: [usize; 2] = [9, 11];
