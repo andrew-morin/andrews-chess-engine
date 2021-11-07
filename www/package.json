@@ -4,9 +4,8 @@
   "description": "web application for Andrew's Chess Engine",
   "main": "index.js",
   "scripts": {
-    "build": "webpack --config webpack.config.js",
-    "start": "webpack-dev-server",
-    "wasm": "./wasm_build.sh"
+    "build": "wasm-pack build && set NODE_OPTIONS=--openssl-legacy-provider && webpack --config webpack.config.js",
+    "start": "wasm-pack build && set NODE_OPTIONS=--openssl-legacy-provider && webpack-dev-server"
   },
   "keywords": [
     "webassembly",
