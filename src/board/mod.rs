@@ -6,12 +6,6 @@ use constants::*;
 use types::*;
 use wasm_bindgen::prelude::*;
 
-#[wasm_bindgen]
-extern "C" {
-  #[wasm_bindgen(js_namespace = console)]
-  fn log(s: &str);
-}
-
 const CARDINAL_MAILBOX_DIRECTION_OFFSETS: [usize; 2] = [1, 10];
 const DIAGONAL_MAILBOX_DIRECTION_OFFSETS: [usize; 2] = [9, 11];
 const ALL_MAILBOX_DIRECTION_OFFSETS: [usize; 4] = [1, 9, 10, 11];
@@ -105,14 +99,18 @@ fn update_castle_availability(mut game_state: GameState, from: usize, to: usize)
 // This is slow and should be updated later.
 pub fn generate_legal_moves(game_state: &GameState) -> Vec<Move> {
   let pseudo_legal_moves = generate_pseudo_legal_moves(&game_state);
+  let (current_is_in_check, _) = in_check(&game_state, game_state.turn);
   pseudo_legal_moves.into_iter().filter(|&_move| {
+    if _move.castle && current_is_in_check {
+      return false;
+    }
     let mut game_state_clone = game_state.clone();
     game_state_clone = perform_move(game_state_clone, _move);
     let attack_moves = generate_pseudo_legal_moves_inner(&game_state_clone, game_state_clone.turn, true);
     if _move.castle {
       let check_index = (_move.from + _move.to) / 2;
-      let castle_out_or_through_check = attack_moves.iter().any(|attack| [_move.from, _move.to, check_index].contains(&attack.to));
-      return !castle_out_or_through_check;
+      let castle_into_or_through_check = attack_moves.iter().any(|attack| [_move.to, check_index].contains(&attack.to));
+      return !castle_into_or_through_check;
     }
     let (is_in_check, _) = in_check(&game_state_clone, game_state_clone.turn.opposite());
     !is_in_check
@@ -121,18 +119,23 @@ pub fn generate_legal_moves(game_state: &GameState) -> Vec<Move> {
 
 pub fn generate_legal_moves_at_depth(game_state: &GameState, depth: usize) -> Vec<GameState> {
   let moves = generate_legal_moves(&game_state);
-  let game_states: Vec<GameState> = moves.iter().map(|_move| perform_move(game_state.clone(), *_move)).collect::<Vec<GameState>>();
+  let mut game_states: Vec<GameState> = moves.iter().map(|_move| perform_move(game_state.clone(), *_move)).collect::<Vec<GameState>>();
 
-  let mut result: Vec<GameState> = vec!();
-  game_states.iter().for_each(|game_state| {
-    let next_move_list = generate_legal_moves(&game_state);
-    for next_move in next_move_list.iter() {
-      let new_game_state = perform_move(game_state.clone(), *next_move);
-      result.push(new_game_state);
-    }
-  });
+  let mut curr_depth = 1;
+  while curr_depth < depth {
+    curr_depth += 1;
+    let mut next: Vec<GameState> = vec!();
+    game_states.iter().for_each(|game_state| {
+      let next_move_list = generate_legal_moves(&game_state);
+      for next_move in next_move_list.iter() {
+        let new_game_state = perform_move(game_state.clone(), *next_move);
+        next.push(new_game_state);
+      }
+    });
+    game_states = next;
+  }
 
-  result
+  game_states
 }
 
 pub fn generate_pseudo_legal_moves(game_state: &GameState) -> Vec<Move> {
@@ -348,9 +351,21 @@ mod perft_tests {
   use super::fen_util::*;
 
   #[test]
-  fn generate_first_move() {
+  fn peft_pos_1() {
     let moves = generate_legal_moves(&GameState::default());
     assert_eq!(moves.len(), 20);
+  }
+
+  #[test]
+  fn peft_pos_1_depth_2() {
+    let game_states = generate_legal_moves_at_depth(&GameState::default(), 2);
+    assert_eq!(game_states.len(), 400);
+  }
+
+  #[test]
+  fn peft_pos_1_depth_3() {
+    let game_states = generate_legal_moves_at_depth(&GameState::default(), 3);
+    assert_eq!(game_states.len(), 8902);
   }
 
   #[test]
@@ -368,6 +383,13 @@ mod perft_tests {
   }
 
   #[test]
+  fn perft_pos_2_depth_3() {
+    let game_state = get_game_state_from_fen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq -");
+    let game_states = generate_legal_moves_at_depth(&game_state, 3);
+    assert_eq!(game_states.len(), 97862);
+  }
+
+  #[test]
   fn perft_pos_3() {
     let game_state = get_game_state_from_fen("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - -");
     let moves = generate_legal_moves(&game_state);
@@ -382,6 +404,13 @@ mod perft_tests {
   }
 
   #[test]
+  fn perft_pos_3_depth_3() {
+    let game_state = get_game_state_from_fen("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - -");
+    let game_states = generate_legal_moves_at_depth(&game_state, 3);
+    assert_eq!(game_states.len(), 2812);
+  }
+
+  #[test]
   fn perft_pos_4() {
     let game_state = get_game_state_from_fen("r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1");
     let moves = generate_legal_moves(&game_state);
@@ -392,9 +421,65 @@ mod perft_tests {
   fn perft_pos_4_depth_2() {
     let game_state = get_game_state_from_fen("r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1");
     let game_states = generate_legal_moves_at_depth(&game_state, 2);
-    let move_map = generate_move_map(&game_states);
-    println!("{:#?}", move_map);
     assert_eq!(game_states.len(), 264);
+  }
+
+  #[test]
+  fn perft_pos_4_depth_3() {
+    let game_state = get_game_state_from_fen("r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1");
+    let game_states = generate_legal_moves_at_depth(&game_state, 3);
+    assert_eq!(game_states.len(), 9467);
+  }
+
+  #[test]
+  fn perft_pos_5() {
+    let game_state = get_game_state_from_fen("rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8");
+    let moves = generate_legal_moves(&game_state);
+    assert_eq!(moves.len(), 44);
+  }
+
+  #[test]
+  fn perft_pos_5_depth_2() {
+    let game_state = get_game_state_from_fen("rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8");
+    let game_states = generate_legal_moves_at_depth(&game_state, 2);
+    assert_eq!(game_states.len(), 1486);
+  }
+
+  #[test]
+  fn perft_pos_5_depth_3() {
+    let game_state = get_game_state_from_fen("rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8");
+    let game_states = generate_legal_moves_at_depth(&game_state, 3);
+    assert_eq!(game_states.len(), 62379);
+  }
+
+  // passes, but slow
+  // #[test]
+  // fn perft_pos_5_depth_4() {
+  //   let game_state = get_game_state_from_fen("rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8");
+  //   let game_states = generate_legal_moves_at_depth(&game_state, 4);
+  //   assert_eq!(game_states.len(), 2_103_487 );
+  // }
+
+
+  #[test]
+  fn perft_pos_6() {
+    let game_state = get_game_state_from_fen("r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10");
+    let moves = generate_legal_moves(&game_state);
+    assert_eq!(moves.len(), 46);
+  }
+
+  #[test]
+  fn perft_pos_6_depth_2() {
+    let game_state = get_game_state_from_fen("r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10");
+    let game_states = generate_legal_moves_at_depth(&game_state, 2);
+    assert_eq!(game_states.len(), 2079);
+  }
+
+  #[test]
+  fn perft_pos_6_depth_3() {
+    let game_state = get_game_state_from_fen("r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10");
+    let game_states = generate_legal_moves_at_depth(&game_state, 3);
+    assert_eq!(game_states.len(), 89890);
   }
 
   fn generate_move_map(game_states: &Vec<GameState>) -> HashMap<String, usize> {
