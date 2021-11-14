@@ -1,8 +1,7 @@
-use super::constants::*;
 use super::types::*;
 
 pub fn get_game_state_from_fen(fen: &str) -> GameState {
-  let mut board: Board = INITIAL_BOARD;
+  let mut board = Board::default();
   let mut castle = CastleAvailability {
     white_kingside: false,
     white_queenside: false,
@@ -22,7 +21,7 @@ pub fn get_game_state_from_fen(fen: &str) -> GameState {
     if let Some(digit) = digit {
       let end_index = index + digit as usize;
       for i in index..end_index {
-        board[i] = EMPTY_SQUARE;
+        board.clear_square(i);
       }
       index = end_index;
     } else {
@@ -41,21 +40,17 @@ pub fn get_game_state_from_fen(fen: &str) -> GameState {
         panic!("Invalid FEN: '{}', rank was too long at index {}", fen, index);
       }
       found_slash = false;
-      board[index] = match c {
-        'p' => BLACK_PAWN,
-        'b' => BLACK_BISHOP,
-        'n' => BLACK_KNIGHT,
-        'r' => BLACK_ROOK,
-        'q' => BLACK_QUEEN,
-        'k' => BLACK_KING,
-        'P' => WHITE_PAWN,
-        'B' => WHITE_BISHOP,
-        'N' => WHITE_KNIGHT,
-        'R' => WHITE_ROOK,
-        'Q' => WHITE_QUEEN,
-        'K' => WHITE_KING,
+      let color = if c.is_uppercase() { Color::White } else { Color::Black };
+      let piece = match c.to_ascii_lowercase() {
+        'p' => Piece::Pawn,
+        'b' => Piece::Bishop,
+        'n' => Piece::Knight,
+        'r' => Piece::Rook,
+        'q' => Piece::Queen,
+        'k' => Piece::King,
         _ => panic!("Invalid FEN: '{}', invalid character '{}' ", fen, c),
       };
+      board.update_square(index, color, piece);
       index += 1
     }
   }
@@ -147,8 +142,8 @@ fn castle_availability_to_fen(castle_availability: &CastleAvailability) -> Strin
 fn board_to_fen_string(board: &Board) -> String {
   let mut board_str = String::new();
   let mut space_count = 0;
-  for (index, square) in board.iter().enumerate() {
-    let letter = get_fen_char_from_square(square);
+  for index in 0..64 {
+    let letter = get_fen_char_from_square(board, index);
     if letter == ' ' {
       space_count += 1;
     } else {
@@ -156,7 +151,7 @@ fn board_to_fen_string(board: &Board) -> String {
         board_str.push_str(&space_count.to_string());
         space_count = 0;
       }
-      board_str.push(get_fen_char_from_square(square));
+      board_str.push(letter);
     }
 
     // last square in the rank, but not last rank
@@ -172,12 +167,13 @@ fn board_to_fen_string(board: &Board) -> String {
   board_str
 }
 
-fn get_fen_char_from_square(square: &Square) -> char {
-  if square.empty == true {
+fn get_fen_char_from_square(board: &Board, index: usize) -> char {
+  let (color, piece) = board.get_square(index);
+  if color == Color::Empty || piece == Piece::Empty {
     return ' ';
   }
-  match square.color {
-    Color::Black => match square.piece {
+  match color {
+    Color::Black => match piece {
       Piece::Pawn   => 'p',
       Piece::Bishop => 'b',
       Piece::Knight => 'n',
@@ -186,7 +182,7 @@ fn get_fen_char_from_square(square: &Square) -> char {
       Piece::King   => 'k',
       Piece::Empty  => ' ',
     },
-    Color::White => match square.piece {
+    Color::White => match piece {
       Piece::Pawn   => 'P',
       Piece::Bishop => 'B',
       Piece::Knight => 'N',
