@@ -82,6 +82,7 @@ impl Board {
     } else if self.white & bit_mask != 0 {
       Color::White
     } else {
+      debug_assert!(self.empties & bit_mask != 0, "index {} did not appear in any of the color or empty masks!", index);
       Color::Empty
     };
     let piece = if self.pawns & bit_mask != 0 {
@@ -97,6 +98,7 @@ impl Board {
     } else if self.kings & bit_mask != 0 {
       Piece::King
     } else {
+      debug_assert!(self.empties & bit_mask != 0, "index {} did not appear in any of the piece or empty masks!", index);
       Piece::Empty
     };
     (color, piece)
@@ -104,7 +106,7 @@ impl Board {
 
   pub fn is_index_of_color_and_piece(&self, index: usize, color: Color, piece: Piece) -> bool {
     let bit_mask: u64 = 1 << index;
-    let is_color = self.is_index_of_color(index, color);
+    let is_color = self.is_index_of_color_mask(bit_mask, color);
     if !is_color {
       return false;
     }
@@ -121,6 +123,10 @@ impl Board {
 
   pub fn is_index_of_color(&self, index: usize, color: Color) -> bool {
     let bit_mask: u64 = 1 << index;
+    self.is_index_of_color_mask(bit_mask, color)
+  }
+
+  fn is_index_of_color_mask(&self, bit_mask: u64, color: Color) -> bool {
     match color {
       Color::Black => self.black & bit_mask != 0,
       Color::White => self.white & bit_mask != 0,
@@ -140,6 +146,54 @@ impl Board {
     self.rooks &= bit_mask_complement;
     self.queens &= bit_mask_complement;
     self.kings &= bit_mask_complement;
+  }
+
+  pub fn move_from_to(&mut self, from: usize, to: usize) {
+    let from_bit_mask: u64 = 1 << from;
+    let to_bit_mask: u64 = 1 << to;
+    let both_bit_mask: u64 = from_bit_mask | to_bit_mask;
+
+    let (from_color, from_piece) = self.get_square(from);
+    let (to_color, to_piece) = self.get_square(to);
+    let capture = to_color != Color::Empty;
+    if from_color == Color::Black {
+      self.black ^= both_bit_mask;
+      if capture {
+        self.white ^= to_bit_mask;
+        self.empties |= from_bit_mask;
+      } else {
+        self.empties ^= both_bit_mask;
+      }
+    } else {
+      self.white ^= both_bit_mask;
+      if capture {
+        self.black ^= to_bit_mask;
+        self.empties |= from_bit_mask;
+      } else {
+        self.empties ^= both_bit_mask;
+      }
+    }
+
+    if capture {
+      let to_piece_bits = self.get_bits_for_piece(to_piece);
+      *to_piece_bits ^= to_bit_mask;
+    }
+    let from_piece_bits = self.get_bits_for_piece(from_piece);
+    *from_piece_bits ^= both_bit_mask;
+
+    self.assert_board_state();
+  }
+
+  fn get_bits_for_piece(&mut self, piece: Piece) -> &mut u64 {
+    match piece {
+      Piece::Pawn => &mut self.pawns,
+      Piece::Bishop => &mut self.bishops,
+      Piece::Knight => &mut self.knights,
+      Piece::Rook => &mut self.rooks,
+      Piece::Queen => &mut self.queens,
+      Piece::King => &mut self.kings,
+      Piece::Empty => &mut self.empties,
+    }
   }
 
   pub fn update_square(&mut self, index: usize, color: Color, piece: Piece) {
@@ -221,6 +275,8 @@ impl Board {
         self.kings &= bit_mask_complement;
       },
     }
+
+    self.assert_board_state();
   }
 
   pub fn castle_black_queenside_open(&self) -> bool {
@@ -241,6 +297,13 @@ impl Board {
   pub fn castle_white_kingside_open(&self) -> bool {
     let castle_square_bitmask = 0x60_00_00_00_00_00_00_00;
     !self.empties & castle_square_bitmask == 0
+  }
+
+  fn assert_board_state(&self) {
+    debug_assert_eq!(self.white ^ self.black ^ self.empties, u64::MAX);
+    debug_assert_eq!(self.white & self.black & self.empties, u64::MIN);
+    debug_assert_eq!(self.pawns ^ self.bishops ^ self.knights ^ self.rooks ^ self.queens ^ self.kings ^ self.empties, u64::MAX);
+    debug_assert_eq!(self.pawns & self.bishops & self.knights & self.rooks & self.queens & self.kings & self.empties, u64::MIN);
   }
 }
 

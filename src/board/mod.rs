@@ -29,22 +29,16 @@ fn find_king(game_state: &GameState, color: Color) -> Option<usize> {
 
 pub fn perform_move(mut game_state: GameState, next_move: Move) -> GameState {
   let Move { from, to, .. } = next_move;
-  let (from_color, from_piece) = game_state.board.get_square(from);
-  game_state.board.update_square(to, from_color, from_piece);
-  game_state.board.clear_square(from);
+  game_state.board.move_from_to(from, to);
   if next_move.castle {
     if to == 2 {
-      game_state.board.update_square(3, from_color, Piece::Rook);
-      game_state.board.clear_square(0);
+      game_state.board.move_from_to(0, 3);
     } else if to == 6 {
-      game_state.board.update_square(5, from_color, Piece::Rook);
-      game_state.board.clear_square(7);
+      game_state.board.move_from_to(7, 5);
     } else if to == 58 {
-      game_state.board.update_square(59, from_color, Piece::Rook);
-      game_state.board.clear_square(56);
+      game_state.board.move_from_to(56, 59);
     } else if to == 62 {
-      game_state.board.update_square(61, from_color, Piece::Rook);
-      game_state.board.clear_square(63);
+      game_state.board.move_from_to(63, 61);
     }
   }
   game_state.move_list.push(next_move);
