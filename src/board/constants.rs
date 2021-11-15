@@ -23,3 +23,8 @@ pub const BOARD_INDEX_TO_MAILBOX_INDEX: [usize; 64] = [
 	81, 82, 83, 84, 85, 86, 87, 88,
 	91, 92, 93, 94, 95, 96, 97, 98
 ];
+
+pub const CARDINAL_MAILBOX_DIRECTION_OFFSETS: [usize; 2] = [1, 10];
+pub const DIAGONAL_MAILBOX_DIRECTION_OFFSETS: [usize; 2] = [9, 11];
+pub const ALL_MAILBOX_DIRECTION_OFFSETS: [usize; 4] = [1, 9, 10, 11];
+pub const KNIGHT_MAILBOX_DIRECTION_OFFSETS: [usize; 4] = [8, 12, 19, 21];

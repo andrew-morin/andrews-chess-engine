@@ -5,11 +5,6 @@ pub mod fen_util;
 use constants::*;
 use types::*;
 
-const CARDINAL_MAILBOX_DIRECTION_OFFSETS: [usize; 2] = [1, 10];
-const DIAGONAL_MAILBOX_DIRECTION_OFFSETS: [usize; 2] = [9, 11];
-const ALL_MAILBOX_DIRECTION_OFFSETS: [usize; 4] = [1, 9, 10, 11];
-const KNIGHT_MAILBOX_DIRECTION_OFFSETS: [usize; 4] = [8, 12, 19, 21];
-
 pub fn in_check(game_state: &GameState, color: Color) -> (bool, usize) {
   let king_index = find_king(game_state, color);
   if let Some(king_index) = king_index {
