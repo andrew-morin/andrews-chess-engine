@@ -50,7 +50,7 @@ pub struct Board {
   rooks: u64,
   kings: u64,
   queens: u64,
-  empties: u64,
+  empty: u64,
 }
 
 impl Default for Board {
@@ -64,7 +64,7 @@ impl Default for Board {
       rooks:   0x81_00_00_00_00_00_00_81,
       queens:  0x10_00_00_00_00_00_00_10,
       kings:   0x08_00_00_00_00_00_00_08,
-      empties: 0x00_00_ff_ff_ff_ff_00_00,
+      empty: 0x00_00_ff_ff_ff_ff_00_00,
     }
   }
 }
@@ -72,7 +72,7 @@ impl Default for Board {
 impl Board {
   pub fn is_index_empty(&self, index: usize) -> bool {
     let bit_mask: u64 = 1 << index;
-    self.empties & bit_mask != 0
+    self.empty & bit_mask != 0
   }
 
   pub fn get_square(&self, index: usize) -> (Color, Piece) {
@@ -82,7 +82,7 @@ impl Board {
     } else if self.white & bit_mask != 0 {
       Color::White
     } else {
-      debug_assert!(self.empties & bit_mask != 0, "index {} did not appear in any of the color or empty masks!", index);
+      debug_assert!(self.empty & bit_mask != 0, "index {} did not appear in any of the color or empty masks!", index);
       Color::Empty
     };
     let piece = if self.pawns & bit_mask != 0 {
@@ -98,7 +98,7 @@ impl Board {
     } else if self.kings & bit_mask != 0 {
       Piece::King
     } else {
-      debug_assert!(self.empties & bit_mask != 0, "index {} did not appear in any of the piece or empty masks!", index);
+      debug_assert!(self.empty & bit_mask != 0, "index {} did not appear in any of the piece or empty masks!", index);
       Piece::Empty
     };
     (color, piece)
@@ -117,7 +117,7 @@ impl Board {
       Piece::Rook => self.rooks & bit_mask != 0,
       Piece::Queen => self.queens & bit_mask != 0,
       Piece::King => self.kings & bit_mask != 0,
-      Piece::Empty => self.empties & bit_mask != 0,
+      Piece::Empty => self.empty & bit_mask != 0,
     }
   }
 
@@ -130,14 +130,14 @@ impl Board {
     match color {
       Color::Black => self.black & bit_mask != 0,
       Color::White => self.white & bit_mask != 0,
-      Color::Empty => self.empties & bit_mask != 0,
+      Color::Empty => self.empty & bit_mask != 0,
     }
   }
 
   pub fn clear_square(&mut self, index: usize) {
     let bit_mask: u64 = 1 << index;
     let bit_mask_complement: u64 = !bit_mask;
-    self.empties |= bit_mask;
+    self.empty |= bit_mask;
     self.white &= bit_mask_complement;
     self.black &= bit_mask_complement;
     self.pawns &= bit_mask_complement;
@@ -160,17 +160,17 @@ impl Board {
       self.black ^= both_bit_mask;
       if capture {
         self.white ^= to_bit_mask;
-        self.empties |= from_bit_mask;
+        self.empty |= from_bit_mask;
       } else {
-        self.empties ^= both_bit_mask;
+        self.empty ^= both_bit_mask;
       }
     } else {
       self.white ^= both_bit_mask;
       if capture {
         self.black ^= to_bit_mask;
-        self.empties |= from_bit_mask;
+        self.empty |= from_bit_mask;
       } else {
-        self.empties ^= both_bit_mask;
+        self.empty ^= both_bit_mask;
       }
     }
 
@@ -181,7 +181,7 @@ impl Board {
     let from_piece_bits = self.get_bits_for_piece(from_piece);
     *from_piece_bits ^= both_bit_mask;
 
-    self.assert_board_state();
+    self.assert_board_state(format!("from: {}, to: {}", from, to));
   }
 
   fn get_bits_for_piece(&mut self, piece: Piece) -> &mut u64 {
@@ -192,7 +192,7 @@ impl Board {
       Piece::Rook => &mut self.rooks,
       Piece::Queen => &mut self.queens,
       Piece::King => &mut self.kings,
-      Piece::Empty => &mut self.empties,
+      Piece::Empty => &mut self.empty,
     }
   }
 
@@ -203,15 +203,15 @@ impl Board {
       Color::White => {
         self.white |= bit_mask;
         self.black &= bit_mask_complement;
-        self.empties &= bit_mask_complement;
+        self.empty &= bit_mask_complement;
       },
       Color::Black => {
         self.black |= bit_mask;
         self.white &= bit_mask_complement;
-        self.empties &= bit_mask_complement;
+        self.empty &= bit_mask_complement;
       },
       Color::Empty => {
-        self.empties |= bit_mask;
+        self.empty |= bit_mask;
         self.white &= bit_mask_complement;
         self.black &= bit_mask_complement;
       },
@@ -276,34 +276,43 @@ impl Board {
       },
     }
 
-    self.assert_board_state();
+    self.assert_board_state(format!("update at index: {}", index));
   }
 
   pub fn castle_black_queenside_open(&self) -> bool {
     let castle_square_bitmask = 0x00_00_00_00_00_00_00_0e;
-    !self.empties & castle_square_bitmask == 0
+    !self.empty & castle_square_bitmask == 0
   }
 
   pub fn castle_black_kingside_open(&self) -> bool {
     let castle_square_bitmask = 0x00_00_00_00_00_00_00_60;
-    !self.empties & castle_square_bitmask == 0
+    !self.empty & castle_square_bitmask == 0
   }
 
   pub fn castle_white_queenside_open(&self) -> bool {
     let castle_square_bitmask = 0x0e_00_00_00_00_00_00_00;
-    !self.empties & castle_square_bitmask == 0
+    !self.empty & castle_square_bitmask == 0
   }
 
   pub fn castle_white_kingside_open(&self) -> bool {
     let castle_square_bitmask = 0x60_00_00_00_00_00_00_00;
-    !self.empties & castle_square_bitmask == 0
+    !self.empty & castle_square_bitmask == 0
   }
 
-  fn assert_board_state(&self) {
-    debug_assert_eq!(self.white ^ self.black ^ self.empties, u64::MAX);
-    debug_assert_eq!(self.white & self.black & self.empties, u64::MIN);
-    debug_assert_eq!(self.pawns ^ self.bishops ^ self.knights ^ self.rooks ^ self.queens ^ self.kings ^ self.empties, u64::MAX);
-    debug_assert_eq!(self.pawns & self.bishops & self.knights & self.rooks & self.queens & self.kings & self.empties, u64::MIN);
+  fn assert_board_state(&self, details: String) {
+    if cfg!(debug_assertions) {
+      debug_assert_eq!(self.white & self.black, u64::MIN, "white and black overlap.\nwhite: {:064b}\nblack: {:064b}\ndetails: {}", self.white, self.black, details);
+      debug_assert_eq!(self.white & self.empty, u64::MIN, "white and empty overlap.\nwhite: {:064b}\nempty: {:064b}\ndetails: {}", self.white, self.empty, details);
+      debug_assert_eq!(self.black & self.empty, u64::MIN, "black and empty overlap.\nwhite: {:064b}\nempty: {:064b}\ndetails: {}", self.white, self.empty, details);
+
+      debug_assert_eq!(self.pawns ^ self.bishops ^ self.knights ^ self.rooks ^ self.queens ^ self.kings ^ self.empty, u64::MAX, "pieces did not cover all squares or had a duplicate\ndetails: {}", details);
+      let piece_bit_masks = [self.pawns, self.bishops, self.knights, self.rooks, self.queens, self.kings, self.empty];
+      for i in 0..6 {
+        for j in i+1..7 {
+          debug_assert_eq!(piece_bit_masks[i] & piece_bit_masks[j], u64::MIN, "two piece bit masks overlap: {} and {}\ndetails: {}", i, j, details);
+        }
+      }
+    }
   }
 }
 
@@ -357,27 +366,6 @@ impl Default for CastleAvailability {
       white_queenside: true,
       black_kingside: true,
       black_queenside: true,
-    }
-  }
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
-pub struct GameState {
-  pub board: Board,
-  pub turn: Color,
-  pub move_list: Vec<Move>,
-  pub castle: CastleAvailability,
-  pub en_passant_index: Option<usize>,
-}
-
-impl Default for GameState {
-  fn default() -> Self {
-    GameState {
-      board: Default::default(),
-      turn: Color::White,
-      move_list: vec!(),
-      castle: Default::default(),
-      en_passant_index: None,
     }
   }
 }

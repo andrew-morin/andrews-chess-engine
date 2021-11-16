@@ -5,6 +5,7 @@ extern crate wasm_bindgen;
 mod board;
 mod engine;
 
+use board::GameState;
 use board::types::*;
 use wasm_bindgen::prelude::*;
 
@@ -23,22 +24,22 @@ pub fn get_initial_game_state() -> JsValue {
 #[wasm_bindgen]
 pub fn get_pseudo_legal_moves(game_state: JsValue) -> JsValue {
   let game_state: GameState = game_state.into_serde().unwrap();
-  let moves = board::generate_pseudo_legal_moves(&game_state);
+  let moves = game_state.generate_pseudo_legal_moves();
   return JsValue::from_serde(&moves).unwrap();
 }
 
 #[wasm_bindgen]
 pub fn get_legal_moves(game_state: JsValue) -> JsValue {
   let game_state: GameState = game_state.into_serde().unwrap();
-  let moves = board::generate_legal_moves(&game_state);
+  let moves = game_state.generate_legal_moves();
   return JsValue::from_serde(&moves).unwrap();
 }
 
 #[wasm_bindgen]
 pub fn perform_move(game_state: JsValue, next_move: JsValue) -> JsValue {
-  let game_state: GameState = game_state.into_serde().unwrap();
+  let mut game_state: GameState = game_state.into_serde().unwrap();
   let next_move: Move = next_move.into_serde().unwrap();
-  let game_state = board::perform_move(game_state, next_move);
+  let game_state = game_state.perform_move(next_move);
   return JsValue::from_serde(&game_state).unwrap();
 }
 
@@ -48,6 +49,6 @@ pub struct InCheckReturn (pub bool, pub usize);
 #[wasm_bindgen]
 pub fn in_check(game_state: JsValue) -> InCheckReturn {
   let game_state: GameState = game_state.into_serde().unwrap();
-  let (b, i) = board::in_check(&game_state, game_state.turn);
+  let (b, i) = game_state.in_check(game_state.turn);
   InCheckReturn(b, i)
 }

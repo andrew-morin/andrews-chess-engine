@@ -1,4 +1,4 @@
-use super::types::*;
+use super::*;
 
 pub fn get_game_state_from_fen(fen: &str) -> GameState {
   let mut board = Board::default();
