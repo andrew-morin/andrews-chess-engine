@@ -13,6 +13,7 @@ pub struct GameState {
   pub castle: CastleAvailability,
   pub en_passant_index: Option<usize>,
   pub move_list: Vec<Move>,
+  pub next_pseudo_legal_moves: Option<Vec<Move>>,
 }
 
 impl Default for GameState {
@@ -23,19 +24,26 @@ impl Default for GameState {
       castle: Default::default(),
       en_passant_index: None,
       move_list: vec!(),
+      next_pseudo_legal_moves: None,
     }
   }
 }
 
 impl GameState {
-  pub fn in_check(&self, color: Color) -> (bool, usize) {
-    let king_index = self.find_king(color);
+  pub fn is_opponent_in_check(&self) -> bool {
+    let king_index = self.find_king(self.turn.opposite());
+    let moves = self.generate_pseudo_legal_moves();
     if let Some(king_index) = king_index {
-      let attack_moves = self.generate_pseudo_legal_moves_inner(color.opposite(), true);
-      let is_in_check = attack_moves.iter().any(|_move| {
-        let result = _move.to == king_index;
-        result
-      });
+      return moves.iter().any(|m| m.to == king_index);
+    }
+    true
+  }
+
+  pub fn is_in_check(&self) -> (bool, usize) {
+    let king_index = self.find_king(self.turn);
+    let moves = self.generate_pseudo_legal_moves_inner(self.turn.opposite(), false);
+    if let Some(king_index) = king_index {
+      let is_in_check = moves.iter().any(|m| m.to == king_index);
       return (is_in_check, king_index)
     }
     (true, 0)
@@ -85,6 +93,7 @@ impl GameState {
     }
 
     self.turn = self.turn.opposite();
+    self.next_pseudo_legal_moves = None;
   }
 
   fn update_castle_availability(&mut self, from: usize, to: usize) {
@@ -111,54 +120,60 @@ impl GameState {
 
   // Generates pseudo legal moves, then removes the ones with the king in check.
   // This is slow and should be updated later.
-  pub fn generate_legal_moves(&self) -> Vec<Move> {
+  pub fn generate_legal_moves(&self) -> Vec<GameState> {
     let pseudo_legal_moves = self.generate_pseudo_legal_moves();
-    let (current_is_in_check, _) = self.in_check(self.turn);
-    pseudo_legal_moves.into_iter().filter(|&_move| {
+    let (current_is_in_check, _) = self.is_in_check();
+    pseudo_legal_moves.iter().filter_map(|&_move| {
       if _move.castle && current_is_in_check {
-        return false;
+        return None;
       }
       let mut game_state_clone = self.clone();
       game_state_clone.perform_move(_move);
-      let attack_moves = game_state_clone.generate_pseudo_legal_moves_inner(game_state_clone.turn, true);
+      let moves = game_state_clone.generate_pseudo_legal_moves();
       if _move.castle {
         let check_index = (_move.from + _move.to) / 2;
-        let castle_into_or_through_check = attack_moves.iter().any(|attack| [_move.to, check_index].contains(&attack.to));
-        return !castle_into_or_through_check;
+        let castle_into_or_through_check = moves.iter().any(|next_move| [_move.to, check_index].contains(&next_move.to));
+        if castle_into_or_through_check {
+          return None;
+        } else {
+          game_state_clone.next_pseudo_legal_moves = Some(moves);
+          return Some(game_state_clone);
+        }
+      } else {
+        let is_in_check = game_state_clone.is_opponent_in_check();
+        if is_in_check {
+          None
+        } else {
+          game_state_clone.next_pseudo_legal_moves = Some(moves);
+          Some(game_state_clone)
+        }
       }
-      let (is_in_check, _) = game_state_clone.in_check(game_state_clone.turn.opposite());
-      !is_in_check
     }).collect()
   }
 
   pub fn generate_legal_moves_at_depth(&self, depth: usize) -> Vec<GameState> {
-    let moves = self.generate_legal_moves();
-    let mut game_states: Vec<GameState> = moves.iter().map(|_move| {
-      let mut game_state = self.clone();
-      game_state.perform_move(*_move);
-      game_state
-    }).collect::<Vec<GameState>>();
+    let mut game_states = self.generate_legal_moves();
 
     let mut curr_depth = 1;
     while curr_depth < depth {
       curr_depth += 1;
-      let mut next: Vec<GameState> = vec!();
-      game_states.iter().for_each(|game_state| {
-        let next_move_list = game_state.generate_legal_moves();
-        for next_move in next_move_list.iter() {
-          let mut new_game_state = game_state.clone();
-          new_game_state.perform_move(*next_move);
-          next.push(new_game_state);
-        }
+      game_states = game_states.iter_mut().fold(vec!(), |mut next, game_state| {
+        let last_move = game_state.move_list.last();
+        let mut next_move_list = game_state.generate_legal_moves();
+        next.append(&mut next_move_list);
+        next
       });
-      game_states = next;
     }
 
     game_states
   }
 
   pub fn generate_pseudo_legal_moves(&self) -> Vec<Move> {
-    self.generate_pseudo_legal_moves_inner(self.turn, false)
+    if let Some(next_pseudo_legal_moves) = &self.next_pseudo_legal_moves {
+      next_pseudo_legal_moves.clone()
+    } else {
+      self.generate_pseudo_legal_moves_inner(self.turn, false)
+    }
   }
 
   fn generate_pseudo_legal_moves_inner(&self, color: Color, attack_only: bool) -> Vec<Move> {
@@ -361,8 +376,9 @@ mod state_tests {
 
   #[test]
   fn in_check_test() {
-    let game_state = get_game_state_from_fen("rnbqkbnr/ppp1pppp/3p4/1B6/8/4P3/PPPP1PPP/RNBQK1NR w KQkq -");
-    assert_eq!(game_state.in_check(Color::Black), (true, 4));
+    let game_state = get_game_state_from_fen("rnbqkbnr/ppp1pppp/3p4/1B6/8/4P3/PPPP1PPP/RNBQK1NR b KQkq -");
+    assert_eq!(game_state.is_in_check(), (true, 4));
+    assert_eq!(game_state.is_opponent_in_check(), false);
   }
 }
 
@@ -471,6 +487,8 @@ mod perft_tests {
   fn perft_pos_5_depth_3() {
     let game_state = get_game_state_from_fen("rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8");
     let game_states = game_state.generate_legal_moves_at_depth(3);
+    let move_map = generate_move_map(&game_states);
+    println!("{:#?}", move_map);
     assert_eq!(game_states.len(), 62379);
   }
 

@@ -63,7 +63,7 @@ pub fn get_game_state_from_fen(fen: &str) -> GameState {
   };
   let c = chars.next();
   if c == None {
-    return GameState { board, turn, move_list: vec!(), castle, ..Default::default() };
+    return GameState { board, turn, castle, ..Default::default() };
   }
   let c = c.unwrap();
   if c != ' ' {
@@ -88,7 +88,7 @@ pub fn get_game_state_from_fen(fen: &str) -> GameState {
     }
   }
 
-  GameState { board, turn, move_list: vec!(), castle, ..Default::default() }
+  GameState { board, turn, castle, ..Default::default() }
 }
 
 pub fn get_square_from_index(index: usize) -> String {

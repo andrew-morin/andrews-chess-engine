@@ -49,6 +49,6 @@ pub struct InCheckReturn (pub bool, pub usize);
 #[wasm_bindgen]
 pub fn in_check(game_state: JsValue) -> InCheckReturn {
   let game_state: GameState = game_state.into_serde().unwrap();
-  let (b, i) = game_state.in_check(game_state.turn);
+  let (b, i) = game_state.is_in_check();
   InCheckReturn(b, i)
 }
