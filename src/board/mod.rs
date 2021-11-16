@@ -31,31 +31,22 @@ impl Default for GameState {
 
 impl GameState {
   pub fn is_opponent_in_check(&self) -> bool {
-    let king_index = self.find_king(self.turn.opposite());
+    let king_index = self.board.find_king(self.turn.opposite());
     let moves = self.generate_pseudo_legal_moves();
     if let Some(king_index) = king_index {
-      return moves.iter().any(|m| m.to == king_index);
+      return moves.iter().any(|m| m.to == king_index as usize);
     }
     true
   }
 
   pub fn is_in_check(&self) -> (bool, usize) {
-    let king_index = self.find_king(self.turn);
+    let king_index = self.board.find_king(self.turn);
     let moves = self.generate_pseudo_legal_moves_inner(self.turn.opposite(), false);
     if let Some(king_index) = king_index {
-      let is_in_check = moves.iter().any(|m| m.to == king_index);
-      return (is_in_check, king_index)
+      let is_in_check = moves.iter().any(|m| m.to == king_index as usize);
+      return (is_in_check, king_index as usize)
     }
     (true, 0)
-  }
-
-  fn find_king(&self, color: Color) -> Option<usize> {
-    for index in 0..64 {
-      if self.board.is_index_of_color_and_piece(index, color, Piece::King) {
-        return Some(index);
-      }
-    }
-    None
   }
 
   pub fn perform_move(&mut self, next_move: Move) {
@@ -158,7 +149,6 @@ impl GameState {
     while curr_depth < depth {
       curr_depth += 1;
       game_states = game_states.iter_mut().fold(vec!(), |mut next, game_state| {
-        let last_move = game_state.move_list.last();
         let mut next_move_list = game_state.generate_legal_moves();
         next.append(&mut next_move_list);
         next
@@ -371,7 +361,6 @@ fn get_piece_mailbox_direction_offsets(piece: &Piece) -> &[usize] {
 
 #[cfg(test)]
 mod state_tests {
-  use super::*;
   use super::fen_util::*;
 
   #[test]
@@ -535,5 +524,25 @@ mod perft_tests {
       }
     });
     move_map
+  }
+}
+
+#[cfg(test)]
+mod benchmark_tests {
+  extern crate test;
+
+  use super::fen_util::*;
+  use test::Bencher;
+
+  #[bench]
+  fn perft_pos_2_pseudo_bench(b: &mut Bencher) {
+    let game_state = get_game_state_from_fen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq -");
+    b.iter(|| game_state.generate_pseudo_legal_moves());
+  }
+
+  #[bench]
+  fn perft_pos_2_legal_bench(b: &mut Bencher) {
+    let game_state = get_game_state_from_fen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq -");
+    b.iter(|| game_state.generate_legal_moves());
   }
 }

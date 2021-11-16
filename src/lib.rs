@@ -1,3 +1,6 @@
+#![feature(int_log)]
+#![feature(test)]
+
 #[macro_use]
 extern crate serde_big_array;
 extern crate wasm_bindgen;

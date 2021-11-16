@@ -75,6 +75,16 @@ impl Board {
     self.empty & bit_mask != 0
   }
 
+  pub fn find_king(&self, color: Color) -> Option<u32> {
+    if color == Color::White {
+      let king_bit_mask = self.kings & self.white;
+      return king_bit_mask.checked_log2();
+    } else {
+      let king_bit_mask = self.kings & self.black;
+      return king_bit_mask.checked_log2();
+    }
+  }
+
   pub fn get_square(&self, index: usize) -> (Color, Piece) {
     let bit_mask: u64 = 1 << index;
     let color = if self.black & bit_mask != 0 {
@@ -102,23 +112,6 @@ impl Board {
       Piece::Empty
     };
     (color, piece)
-  }
-
-  pub fn is_index_of_color_and_piece(&self, index: usize, color: Color, piece: Piece) -> bool {
-    let bit_mask: u64 = 1 << index;
-    let is_color = self.is_index_of_color_mask(bit_mask, color);
-    if !is_color {
-      return false;
-    }
-    match piece {
-      Piece::Pawn => self.pawns & bit_mask != 0,
-      Piece::Bishop => self.bishops & bit_mask != 0,
-      Piece::Knight => self.knights & bit_mask != 0,
-      Piece::Rook => self.rooks & bit_mask != 0,
-      Piece::Queen => self.queens & bit_mask != 0,
-      Piece::King => self.kings & bit_mask != 0,
-      Piece::Empty => self.empty & bit_mask != 0,
-    }
   }
 
   pub fn is_index_of_color(&self, index: usize, color: Color) -> bool {
