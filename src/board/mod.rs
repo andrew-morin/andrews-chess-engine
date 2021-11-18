@@ -31,20 +31,31 @@ impl Default for GameState {
 
 impl GameState {
   pub fn is_opponent_in_check(&self) -> bool {
-    let king_index = self.board.find_king(self.turn.opposite());
-    let moves = self.generate_pseudo_legal_moves();
-    if let Some(king_index) = king_index {
-      return moves.iter().any(|m| m.to == king_index as usize);
-    }
-    true
+    let (is_in_check, _) = self.is_in_check_inner(self.turn.opposite());
+    return is_in_check;
   }
 
   pub fn is_in_check(&self) -> (bool, usize) {
-    let king_index = self.board.find_king(self.turn);
-    let moves = self.generate_pseudo_legal_moves_inner(self.turn.opposite(), false);
+    self.is_in_check_inner(self.turn)
+  }
+
+  fn is_in_check_inner(&self, color: Color) -> (bool, usize) {
+    let king_index = self.board.find_king(color);
     if let Some(king_index) = king_index {
-      let is_in_check = moves.iter().any(|m| m.to == king_index as usize);
-      return (is_in_check, king_index as usize)
+      let king_index = king_index as usize;
+      if self.board.is_pawn_attacking_king(color) {
+        return (true, king_index);
+      } else if self.board.is_knight_attacking_king(color) {
+        return (true, king_index);
+      } else if self.board.is_king_attacking_king(color) {
+        return (true, king_index);
+      } else if self.board.is_cardinal_slide_piece_attack_king(color) {
+        return (true, king_index);
+      } else if self.board.is_diagonal_slide_piece_attack_king(color) {
+        return (true, king_index);
+      } else {
+        return (false, king_index);
+      }
     }
     (true, 0)
   }
