@@ -47,7 +47,7 @@ impl GameState {
         return (true, king_index);
       } else if self.board.is_knight_attacking_index(king_index) {
         return (true, king_index);
-      } else if self.board.is_king_attacking_king(color) {
+      } else if self.board.is_king_attacking_index(king_index) {
         return (true, king_index);
       } else if self.board.is_cardinal_slide_piece_attack_king(color) {
         return (true, king_index);
@@ -66,7 +66,7 @@ impl GameState {
       return true;
     } else if self.board.is_knight_attacking_index(index) {
       return true;
-    } else if self.board.is_king_attacking_king(color) {
+    } else if self.board.is_king_attacking_index(index) {
       return true;
     } else if self.board.is_cardinal_slide_piece_attack_king(color) {
       return true;

@@ -116,13 +116,21 @@ impl Board {
   }
 
   pub fn is_knight_attacking_index(&self, index: usize) -> bool {
+    self.is_hop_piece_attack_index(index, &KNIGHT_MAILBOX_DIRECTION_OFFSETS, self.knights)
+  }
+
+  pub fn is_king_attacking_index(&self, index: usize) -> bool {
+    self.is_hop_piece_attack_index(index, &CARDINAL_MAILBOX_DIRECTION_OFFSETS, self.kings)
+  }
+
+  fn is_hop_piece_attack_index(&self, index: usize, mailbox_offsets: &[usize], piece_bitmask: u64) -> bool {
     let bit_mask: u64 = 1 << index;
-    let color = self.get_square_color_mask(bit_mask);
     let piece_mailbox_index = BOARD_INDEX_TO_MAILBOX_INDEX[index];
+    let color = self.get_square_color_mask(bit_mask);
     let opponent_color_bitmask = self.get_color_bitmask(color.opposite());
-    let opponent_knights_bitmask = self.knights & opponent_color_bitmask;
-    let mut knight_attack_bitmask = 0 as u64;
-    KNIGHT_MAILBOX_DIRECTION_OFFSETS.iter().fold(vec!(), |mut indices, offset| {
+    let opponent_bitmask = piece_bitmask & opponent_color_bitmask;
+    let mut attack_bitmask = 0 as u64;
+    mailbox_offsets.iter().fold(vec!(), |mut indices, offset| {
       let board_index = MAILBOX[piece_mailbox_index + offset];
       if let Some(board_index) = board_index {
         indices.push(board_index);
@@ -133,33 +141,9 @@ impl Board {
       }
       indices
     }).iter().for_each(|index| {
-      knight_attack_bitmask |= 1 << index;
+      attack_bitmask |= 1 << index;
     });
-    knight_attack_bitmask & opponent_knights_bitmask != 0
-  }
-
-  pub fn is_king_attacking_king(&self, color: Color) -> bool {
-    let king_index = self.find_king(color);
-    if let Some(king_index) = king_index {
-      let king_index = king_index as usize;
-      let king_mailbox_index = BOARD_INDEX_TO_MAILBOX_INDEX[king_index];
-      let opponent_color_bitmask = self.get_color_bitmask(color.opposite());
-      let opponent_king_bitmask = self.kings & opponent_color_bitmask;
-      ALL_MAILBOX_DIRECTION_OFFSETS.iter().any(|mailbox_offset| {
-        let target_mailbox_index_plus = king_mailbox_index + mailbox_offset;
-        let target_mailbox_index_minus = king_mailbox_index - mailbox_offset;
-        [target_mailbox_index_plus, target_mailbox_index_minus].iter().any(|&target_mailbox_index| {
-          let target_square_index = MAILBOX[target_mailbox_index];
-          if let Some(target_index) = target_square_index {
-            opponent_king_bitmask & (1 << target_index) != 0
-          } else {
-            false
-          }
-        })
-      })
-    } else {
-      false
-    }
+    attack_bitmask & opponent_bitmask != 0
   }
 
   pub fn is_cardinal_slide_piece_attack_king(&self, color: Color) -> bool {
