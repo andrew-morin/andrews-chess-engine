@@ -43,7 +43,7 @@ impl GameState {
     let king_index = self.board.find_king(color);
     if let Some(king_index) = king_index {
       let king_index = king_index as usize;
-      if self.board.is_pawn_attacking_king(color) {
+      if self.board.is_pawn_attacking_index(king_index) {
         return (true, king_index);
       } else if self.board.is_knight_attacking_king(color) {
         return (true, king_index);
@@ -58,6 +58,23 @@ impl GameState {
       }
     }
     (true, 0)
+  }
+
+  fn is_index_under_attack(&self, index: usize) -> bool {
+    let (color, _) = self.board.get_square(index);
+    if self.board.is_pawn_attacking_index(index) {
+      return true;
+    } else if self.board.is_knight_attacking_king(color) {
+      return true;
+    } else if self.board.is_king_attacking_king(color) {
+      return true;
+    } else if self.board.is_cardinal_slide_piece_attack_king(color) {
+      return true;
+    } else if self.board.is_diagonal_slide_piece_attack_king(color) {
+      return true;
+    } else {
+      return false;
+    }
   }
 
   pub fn perform_move(&mut self, next_move: Move) {
@@ -125,32 +142,31 @@ impl GameState {
   pub fn generate_legal_moves(&self) -> Vec<GameState> {
     let pseudo_legal_moves = self.generate_pseudo_legal_moves();
     let (current_is_in_check, _) = self.is_in_check();
-    pseudo_legal_moves.iter().filter_map(|&_move| {
-      if _move.castle && current_is_in_check {
-        return None;
-      }
-      let mut game_state_clone = self.clone();
-      game_state_clone.perform_move(_move);
-      let moves = game_state_clone.generate_pseudo_legal_moves();
-      if _move.castle {
-        let check_index = (_move.from + _move.to) / 2;
-        let castle_into_or_through_check = moves.iter().any(|next_move| [_move.to, check_index].contains(&next_move.to));
-        if castle_into_or_through_check {
-          return None;
-        } else {
-          game_state_clone.next_pseudo_legal_moves = Some(moves);
-          return Some(game_state_clone);
-        }
-      } else {
-        let is_in_check = game_state_clone.is_opponent_in_check();
-        if is_in_check {
-          None
-        } else {
-          game_state_clone.next_pseudo_legal_moves = Some(moves);
-          Some(game_state_clone)
-        }
-      }
-    }).collect()
+    pseudo_legal_moves.iter()
+        .filter(|&next_move| !next_move.castle || !current_is_in_check)
+        .filter_map(|&_move| {
+          let mut game_state_clone = self.clone();
+          game_state_clone.perform_move(_move);
+          let moves = game_state_clone.generate_pseudo_legal_moves();
+          if _move.castle {
+            let check_index = (_move.from + _move.to) / 2;
+            let castle_into_or_through_check = moves.iter().any(|next_move| [_move.to, check_index].contains(&next_move.to));
+            if castle_into_or_through_check {
+              return None;
+            } else {
+              game_state_clone.next_pseudo_legal_moves = Some(moves);
+              return Some(game_state_clone);
+            }
+          } else {
+            let is_in_check = game_state_clone.is_opponent_in_check();
+            if is_in_check {
+              None
+            } else {
+              game_state_clone.next_pseudo_legal_moves = Some(moves);
+              Some(game_state_clone)
+            }
+          }
+        }).collect()
   }
 
   pub fn generate_legal_moves_at_depth(&self, depth: usize) -> Vec<GameState> {

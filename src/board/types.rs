@@ -94,29 +94,25 @@ impl Board {
     }
   }
 
-  pub fn is_pawn_attacking_king(&self, color: Color) -> bool {
-    let king_index = self.find_king(color);
-    if let Some(king_index) = king_index {
-      let king_index = king_index as usize;
-      let king_mailbox_index = BOARD_INDEX_TO_MAILBOX_INDEX[king_index];
-      let opponent_pawn_mailbox_indices = if color == Color::White {
-        [king_mailbox_index - 11, king_mailbox_index - 9]
-      } else {
-        [king_mailbox_index + 9, king_mailbox_index + 11]
-      };
-      let opponent_color_bitmask = self.get_color_bitmask(color.opposite());
-      let opponent_pawns_bitmask = self.pawns & opponent_color_bitmask;
-      opponent_pawn_mailbox_indices.iter().any(|&pawn_mailbox_index| {
-        let pawn_index = MAILBOX[pawn_mailbox_index];
-        if let Some(pawn_index) = pawn_index {
-          opponent_pawns_bitmask & (1 << pawn_index) != 0
-        } else {
-          false
-        }
-      })
+  pub fn is_pawn_attacking_index(&self, index: usize) -> bool {
+    let bit_mask: u64 = 1 << index;
+    let color = self.get_square_color_mask(bit_mask);
+    let piece_mailbox_index = BOARD_INDEX_TO_MAILBOX_INDEX[index];
+    let opponent_pawn_mailbox_indices = if color == Color::White {
+      [piece_mailbox_index - 11, piece_mailbox_index - 9]
     } else {
-      false
-    }
+      [piece_mailbox_index + 9, piece_mailbox_index + 11]
+    };
+    let opponent_color_bitmask = self.get_color_bitmask(color.opposite());
+    let opponent_pawns_bitmask = self.pawns & opponent_color_bitmask;
+    opponent_pawn_mailbox_indices.iter().any(|&pawn_mailbox_index| {
+      let pawn_index = MAILBOX[pawn_mailbox_index];
+      if let Some(pawn_index) = pawn_index {
+        opponent_pawns_bitmask & (1 << pawn_index) != 0
+      } else {
+        false
+      }
+    })
   }
 
   pub fn is_knight_attacking_king(&self, color: Color) -> bool {
@@ -243,16 +239,19 @@ impl Board {
     }
   }
 
-  pub fn get_square(&self, index: usize) -> (Color, Piece) {
-    let bit_mask: u64 = 1 << index;
-    let color = if self.black & bit_mask != 0 {
+  fn get_square_color_mask(&self, bit_mask: u64) -> Color {
+    if self.black & bit_mask != 0 {
       Color::Black
     } else if self.white & bit_mask != 0 {
       Color::White
     } else {
-      debug_assert!(self.empty & bit_mask != 0, "index {} did not appear in any of the color or empty masks!", index);
       Color::Empty
-    };
+    }
+  }
+
+  pub fn get_square(&self, index: usize) -> (Color, Piece) {
+    let bit_mask: u64 = 1 << index;
+    let color = self.get_square_color_mask(bit_mask);
     let piece = if self.pawns & bit_mask != 0 {
       Piece::Pawn
     } else if self.knights & bit_mask != 0 {
