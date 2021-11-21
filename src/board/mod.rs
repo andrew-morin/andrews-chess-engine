@@ -45,7 +45,7 @@ impl GameState {
       let king_index = king_index as usize;
       if self.board.is_pawn_attacking_index(king_index) {
         return (true, king_index);
-      } else if self.board.is_knight_attacking_king(color) {
+      } else if self.board.is_knight_attacking_index(king_index) {
         return (true, king_index);
       } else if self.board.is_king_attacking_king(color) {
         return (true, king_index);
@@ -64,7 +64,7 @@ impl GameState {
     let (color, _) = self.board.get_square(index);
     if self.board.is_pawn_attacking_index(index) {
       return true;
-    } else if self.board.is_knight_attacking_king(color) {
+    } else if self.board.is_knight_attacking_index(index) {
       return true;
     } else if self.board.is_king_attacking_king(color) {
       return true;

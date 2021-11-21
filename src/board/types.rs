@@ -115,28 +115,27 @@ impl Board {
     })
   }
 
-  pub fn is_knight_attacking_king(&self, color: Color) -> bool {
-    let king_index = self.find_king(color);
-    if let Some(king_index) = king_index {
-      let king_index = king_index as usize;
-      let king_mailbox_index = BOARD_INDEX_TO_MAILBOX_INDEX[king_index];
-      let opponent_color_bitmask = self.get_color_bitmask(color.opposite());
-      let opponent_knights_bitmask = self.knights & opponent_color_bitmask;
-      KNIGHT_MAILBOX_DIRECTION_OFFSETS.iter().any(|mailbox_offset| {
-        let target_mailbox_index_plus = king_mailbox_index + mailbox_offset;
-        let target_mailbox_index_minus = king_mailbox_index - mailbox_offset;
-        [target_mailbox_index_plus, target_mailbox_index_minus].iter().any(|&target_mailbox_index| {
-          let target_square_index = MAILBOX[target_mailbox_index];
-          if let Some(target_index) = target_square_index {
-            opponent_knights_bitmask & (1 << target_index) != 0
-          } else {
-            false
-          }
-        })
-      })
-    } else {
-      false
-    }
+  pub fn is_knight_attacking_index(&self, index: usize) -> bool {
+    let bit_mask: u64 = 1 << index;
+    let color = self.get_square_color_mask(bit_mask);
+    let piece_mailbox_index = BOARD_INDEX_TO_MAILBOX_INDEX[index];
+    let opponent_color_bitmask = self.get_color_bitmask(color.opposite());
+    let opponent_knights_bitmask = self.knights & opponent_color_bitmask;
+    let mut knight_attack_bitmask = 0 as u64;
+    KNIGHT_MAILBOX_DIRECTION_OFFSETS.iter().fold(vec!(), |mut indices, offset| {
+      let board_index = MAILBOX[piece_mailbox_index + offset];
+      if let Some(board_index) = board_index {
+        indices.push(board_index);
+      }
+      let board_index = MAILBOX[piece_mailbox_index - offset];
+      if let Some(board_index) = board_index {
+        indices.push(board_index);
+      }
+      indices
+    }).iter().for_each(|index| {
+      knight_attack_bitmask |= 1 << index;
+    });
+    knight_attack_bitmask & opponent_knights_bitmask != 0
   }
 
   pub fn is_king_attacking_king(&self, color: Color) -> bool {
