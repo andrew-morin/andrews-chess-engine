@@ -49,7 +49,7 @@ impl GameState {
         return (true, king_index);
       } else if self.board.is_king_attacking_index(king_index) {
         return (true, king_index);
-      } else if self.board.is_cardinal_slide_piece_attack_king(color) {
+      } else if self.board.is_cardinal_slide_piece_attack_index(king_index) {
         return (true, king_index);
       } else if self.board.is_diagonal_slide_piece_attack_king(color) {
         return (true, king_index);
@@ -68,7 +68,7 @@ impl GameState {
       return true;
     } else if self.board.is_king_attacking_index(index) {
       return true;
-    } else if self.board.is_cardinal_slide_piece_attack_king(color) {
+    } else if self.board.is_cardinal_slide_piece_attack_index(index) {
       return true;
     } else if self.board.is_diagonal_slide_piece_attack_king(color) {
       return true;
@@ -503,8 +503,6 @@ mod perft_tests {
   fn perft_pos_5_depth_3() {
     let game_state = get_game_state_from_fen("rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8");
     let game_states = game_state.generate_legal_moves_at_depth(3);
-    let move_map = generate_move_map(&game_states);
-    println!("{:#?}", move_map);
     assert_eq!(game_states.len(), 62379);
   }
 

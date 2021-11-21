@@ -28,3 +28,31 @@ pub const CARDINAL_MAILBOX_DIRECTION_OFFSETS: [usize; 2] = [1, 10];
 pub const DIAGONAL_MAILBOX_DIRECTION_OFFSETS: [usize; 2] = [9, 11];
 pub const ALL_MAILBOX_DIRECTION_OFFSETS: [usize; 4] = [1, 9, 10, 11];
 pub const KNIGHT_MAILBOX_DIRECTION_OFFSETS: [usize; 4] = [8, 12, 19, 21];
+
+pub static KING_ATTACK_BITMASKS: [u64; 64] = build_hop_attack_bitmasks(&ALL_MAILBOX_DIRECTION_OFFSETS);
+pub static KNIGHT_ATTACK_BITMASKS: [u64; 64] = build_hop_attack_bitmasks(&KNIGHT_MAILBOX_DIRECTION_OFFSETS);
+
+const fn build_hop_attack_bitmasks(offset_directions: &[usize]) -> [u64; 64] {
+  let mut bitmasks: [u64; 64] = [0; 64];
+  let mut index = 0;
+  while index < 64 {
+    let mailbox_index = BOARD_INDEX_TO_MAILBOX_INDEX[index];
+    let mut bitmask: u64 = 0;
+    let mut offset_index = 0;
+    while offset_index < 4 {
+      let offset = offset_directions[offset_index];
+      let attack_mailbox_index = MAILBOX[mailbox_index + offset];
+      if let Some(attack_mailbox_index) = attack_mailbox_index {
+        bitmask |= 1 << attack_mailbox_index;
+      }
+      let attack_mailbox_index = MAILBOX[mailbox_index - offset];
+      if let Some(attack_mailbox_index) = attack_mailbox_index {
+        bitmask |= 1 << attack_mailbox_index;
+      }
+      offset_index += 1;
+    }
+    bitmasks[index] = bitmask;
+    index += 1;
+  }
+  bitmasks
+}

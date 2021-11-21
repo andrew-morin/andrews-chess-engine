@@ -116,72 +116,51 @@ impl Board {
   }
 
   pub fn is_knight_attacking_index(&self, index: usize) -> bool {
-    self.is_hop_piece_attack_index(index, &KNIGHT_MAILBOX_DIRECTION_OFFSETS, self.knights)
+    self.is_hop_piece_attack_index(index, KNIGHT_ATTACK_BITMASKS, self.knights)
   }
 
   pub fn is_king_attacking_index(&self, index: usize) -> bool {
-    self.is_hop_piece_attack_index(index, &CARDINAL_MAILBOX_DIRECTION_OFFSETS, self.kings)
+    self.is_hop_piece_attack_index(index, KING_ATTACK_BITMASKS, self.kings)
   }
 
-  fn is_hop_piece_attack_index(&self, index: usize, mailbox_offsets: &[usize], piece_bitmask: u64) -> bool {
+  fn is_hop_piece_attack_index(&self, index: usize, attack_indices: [u64; 64], piece_bitmask: u64) -> bool {
+    let bit_mask: u64 = 1 << index;
+    let color = self.get_square_color_mask(bit_mask);
+    let opponent_color_bitmask = self.get_color_bitmask(color.opposite());
+    let opponent_bitmask = piece_bitmask & opponent_color_bitmask;
+    let attack_bitmask = attack_indices[index];
+    attack_bitmask & opponent_bitmask != 0
+  }
+
+  pub fn is_cardinal_slide_piece_attack_index(&self, index: usize) -> bool {
     let bit_mask: u64 = 1 << index;
     let piece_mailbox_index = BOARD_INDEX_TO_MAILBOX_INDEX[index];
     let color = self.get_square_color_mask(bit_mask);
     let opponent_color_bitmask = self.get_color_bitmask(color.opposite());
-    let opponent_bitmask = piece_bitmask & opponent_color_bitmask;
-    let mut attack_bitmask = 0 as u64;
-    mailbox_offsets.iter().fold(vec!(), |mut indices, offset| {
-      let board_index = MAILBOX[piece_mailbox_index + offset];
-      if let Some(board_index) = board_index {
-        indices.push(board_index);
-      }
-      let board_index = MAILBOX[piece_mailbox_index - offset];
-      if let Some(board_index) = board_index {
-        indices.push(board_index);
-      }
-      indices
-    }).iter().for_each(|index| {
-      attack_bitmask |= 1 << index;
-    });
-    attack_bitmask & opponent_bitmask != 0
-  }
-
-  pub fn is_cardinal_slide_piece_attack_king(&self, color: Color) -> bool {
-    let king_index = self.find_king(color);
-    if let Some(king_index) = king_index {
-      let king_index = king_index as usize;
-      let king_mailbox_index = BOARD_INDEX_TO_MAILBOX_INDEX[king_index];
-      let opponent_color_bitmask = self.get_color_bitmask(color.opposite());
-      let opponent_rook_queen_bitmask = (self.rooks | self.queens) & opponent_color_bitmask;
-      CARDINAL_MAILBOX_DIRECTION_OFFSETS.iter().any(|mailbox_offset| {
-        let target_mailbox_index_plus = king_mailbox_index + mailbox_offset;
-        let target_mailbox_index_minus = king_mailbox_index - mailbox_offset;
-        for mut target_mailbox_index in [target_mailbox_index_plus, target_mailbox_index_minus] {
-          loop {
-            let target_square_index = MAILBOX[target_mailbox_index];
-            if let Some(target_index) = target_square_index {
-              let is_opponent_piece = opponent_rook_queen_bitmask & (1 << target_index) != 0;
-              if is_opponent_piece {
-                return true;
-              } else if self.is_index_empty(target_index) {
-                if target_mailbox_index < king_mailbox_index {
-                  target_mailbox_index -= mailbox_offset;
-                } else {
-                  target_mailbox_index += mailbox_offset;
-                }
-              } else {
-                break;
-              }
-            } else {
-              break;
-            }
-          }
+    let opponent_cardinal_piece_bitmask = (self.rooks | self.queens) & opponent_color_bitmask;
+    CARDINAL_MAILBOX_DIRECTION_OFFSETS.iter().any(|mailbox_offset| {
+      let mut mailbox_index = piece_mailbox_index - mailbox_offset;
+      while let Some(piece_index) = MAILBOX[mailbox_index] {
+        let piece_index_bitmask = 1 << piece_index;
+        if opponent_cardinal_piece_bitmask & piece_index_bitmask != 0 {
+          return true;
+        } else if self.empty & piece_index_bitmask == 0 {
+          return false;
         }
-        false
-      })
-    } else {
+        mailbox_index -= mailbox_offset;
+      }
+      let mut mailbox_index = piece_mailbox_index + mailbox_offset;
+      while let Some(piece_index) = MAILBOX[mailbox_index] {
+        let piece_index_bitmask = 1 << piece_index;
+        if opponent_cardinal_piece_bitmask & piece_index_bitmask != 0 {
+          return true;
+        } else if self.empty & piece_index_bitmask == 0 {
+          return false;
+        }
+        mailbox_index += mailbox_offset;
+      }
       false
-    }
+    })
   }
 
   pub fn is_diagonal_slide_piece_attack_king(&self, color: Color) -> bool {
