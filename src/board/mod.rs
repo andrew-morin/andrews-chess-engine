@@ -42,38 +42,9 @@ impl GameState {
   fn is_in_check_inner(&self, color: Color) -> (bool, usize) {
     let king_index = self.board.find_king(color);
     if let Some(king_index) = king_index {
-      let king_index = king_index as usize;
-      if self.board.is_pawn_attacking_index(king_index) {
-        return (true, king_index);
-      } else if self.board.is_knight_attacking_index(king_index) {
-        return (true, king_index);
-      } else if self.board.is_king_attacking_index(king_index) {
-        return (true, king_index);
-      } else if self.board.is_cardinal_slide_piece_attack_index(king_index) {
-        return (true, king_index);
-      } else if self.board.is_diagonal_slide_piece_attack_king(color) {
-        return (true, king_index);
-      } else {
-        return (false, king_index);
-      }
-    }
-    (true, 0)
-  }
-
-  fn is_index_under_attack(&self, index: usize) -> bool {
-    let (color, _) = self.board.get_square(index);
-    if self.board.is_pawn_attacking_index(index) {
-      return true;
-    } else if self.board.is_knight_attacking_index(index) {
-      return true;
-    } else if self.board.is_king_attacking_index(index) {
-      return true;
-    } else if self.board.is_cardinal_slide_piece_attack_index(index) {
-      return true;
-    } else if self.board.is_diagonal_slide_piece_attack_king(color) {
-      return true;
+      (self.board.is_index_under_attack(king_index as usize), king_index as usize)
     } else {
-      return false;
+      (true, 0)
     }
   }
 
@@ -535,7 +506,7 @@ mod perft_tests {
     assert_eq!(game_states.len(), 89890);
   }
 
-  fn generate_move_map(game_states: &Vec<GameState>) -> HashMap<String, usize> {
+  fn print_move_map(game_states: &Vec<GameState>) {
     let mut move_map: HashMap<String, usize> = HashMap::new();
     game_states.iter().for_each(|game_state| {
       let first_move = game_state.move_list.get(0);
@@ -548,7 +519,7 @@ mod perft_tests {
           .or_insert(1);
       }
     });
-    move_map
+    println!("{:?}", move_map);
   }
 }
 

@@ -29,10 +29,12 @@ pub const DIAGONAL_MAILBOX_DIRECTION_OFFSETS: [usize; 2] = [9, 11];
 pub const ALL_MAILBOX_DIRECTION_OFFSETS: [usize; 4] = [1, 9, 10, 11];
 pub const KNIGHT_MAILBOX_DIRECTION_OFFSETS: [usize; 4] = [8, 12, 19, 21];
 
-pub static KING_ATTACK_BITMASKS: [u64; 64] = build_hop_attack_bitmasks(&ALL_MAILBOX_DIRECTION_OFFSETS);
-pub static KNIGHT_ATTACK_BITMASKS: [u64; 64] = build_hop_attack_bitmasks(&KNIGHT_MAILBOX_DIRECTION_OFFSETS);
+pub static KING_ATTACK_BITMASKS: [u64; 64] = build_hop_attack_bitmasks(ALL_MAILBOX_DIRECTION_OFFSETS);
+pub static KNIGHT_ATTACK_BITMASKS: [u64; 64] = build_hop_attack_bitmasks(KNIGHT_MAILBOX_DIRECTION_OFFSETS);
+pub static CARDINAL_ATTACK_BITMASKS: [[u64; 4]; 64] = build_slide_attack_bitmasks(CARDINAL_MAILBOX_DIRECTION_OFFSETS);
+pub static DIAGONAL_ATTACK_BITMASKS: [[u64; 4]; 64] = build_slide_attack_bitmasks(DIAGONAL_MAILBOX_DIRECTION_OFFSETS);
 
-const fn build_hop_attack_bitmasks(offset_directions: &[usize]) -> [u64; 64] {
+const fn build_hop_attack_bitmasks(offset_directions: [usize; 4]) -> [u64; 64] {
   let mut bitmasks: [u64; 64] = [0; 64];
   let mut index = 0;
   while index < 64 {
@@ -41,17 +43,54 @@ const fn build_hop_attack_bitmasks(offset_directions: &[usize]) -> [u64; 64] {
     let mut offset_index = 0;
     while offset_index < 4 {
       let offset = offset_directions[offset_index];
-      let attack_mailbox_index = MAILBOX[mailbox_index + offset];
-      if let Some(attack_mailbox_index) = attack_mailbox_index {
-        bitmask |= 1 << attack_mailbox_index;
+      let attack_index = MAILBOX[mailbox_index + offset];
+      if let Some(attack_index) = attack_index {
+        bitmask |= 1 << attack_index;
       }
-      let attack_mailbox_index = MAILBOX[mailbox_index - offset];
-      if let Some(attack_mailbox_index) = attack_mailbox_index {
-        bitmask |= 1 << attack_mailbox_index;
+      let attack_index = MAILBOX[mailbox_index - offset];
+      if let Some(attack_index) = attack_index {
+        bitmask |= 1 << attack_index;
       }
       offset_index += 1;
     }
     bitmasks[index] = bitmask;
+    index += 1;
+  }
+  bitmasks
+}
+
+const fn build_slide_attack_bitmasks(offset_directions: [usize; 2]) -> [[u64; 4]; 64] {
+  let mut bitmasks: [[u64; 4]; 64] = [[0; 4]; 64];
+  let mut index = 0;
+  while index < 64 {
+    let mailbox_index = BOARD_INDEX_TO_MAILBOX_INDEX[index];
+    let mut direction_bitmasks: [u64; 4] = [0; 4];
+    let mut offset_index = 0;
+    while offset_index < 2 {
+      let offset = offset_directions[offset_index];
+      let mut attack_mailbox_index = mailbox_index - offset;
+      loop {
+        let attack_index = MAILBOX[attack_mailbox_index];
+        if let Some(attack_index) = attack_index {
+          direction_bitmasks[offset_index] |= 1 << attack_index;
+          attack_mailbox_index -= offset;
+        } else {
+          break;
+        }
+      }
+      let mut attack_mailbox_index = mailbox_index + offset;
+      loop {
+        let attack_index = MAILBOX[attack_mailbox_index];
+        if let Some(attack_index) = attack_index {
+          direction_bitmasks[offset_index + 2] |= 1 << attack_index;
+          attack_mailbox_index += offset;
+        } else {
+          break;
+        }
+      }
+      offset_index += 1;
+    }
+    bitmasks[index] = direction_bitmasks;
     index += 1;
   }
   bitmasks
