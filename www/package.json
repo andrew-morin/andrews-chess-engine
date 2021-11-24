@@ -4,8 +4,8 @@
   "description": "web application for Andrew's Chess Engine",
   "main": "index.js",
   "scripts": {
-    "build": "wasm-pack build && set NODE_OPTIONS=--openssl-legacy-provider && webpack --config webpack.config.js",
-    "start": "wasm-pack build && set NODE_OPTIONS=--openssl-legacy-provider && webpack-dev-server"
+    "build": "wasm-pack build && yarn upgrade andrews-chess-engine && set NODE_OPTIONS=--openssl-legacy-provider && webpack --config webpack.config.js",
+    "start": "wasm-pack build && yarn upgrade andrews-chess-engine && set NODE_OPTIONS=--openssl-legacy-provider && webpack-dev-server"
   },
   "keywords": [
     "webassembly",
@@ -16,13 +16,13 @@
   "author": "Andrew Morin <andrewmorin8@gmail.com>",
   "license": "MIT",
   "dependencies": {
-    "eslint-config-airbnb-base": "^14.2.1",
+    "eslint-config-airbnb-base": "^15.0.0",
     "eslint-plugin-import": "^2.25.2",
     "wasm-andrews-chess-engine": "file:../pkg"
   },
   "devDependencies": {
     "copy-webpack-plugin": "^9.0.1",
-    "eslint": "^8.1.0",
+    "eslint": "^8.3.0",
     "webpack": "^5.60.0",
     "webpack-cli": "^4.9.1",
     "webpack-dev-server": "^4.3.1"

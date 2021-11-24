@@ -1,4 +1,4 @@
-use serde::{Serialize, Deserialize};
+use serde::{Serialize, Deserialize, Serializer, Deserializer, de};
 use super::constants::*;
 
 big_array! { BigArray; }
@@ -41,16 +41,41 @@ impl Default for Piece {
   fn default() -> Self { Piece::Empty }
 }
 
+fn to_str<S>(x: &u64, s: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    s.serialize_str(&x.to_string())
+}
+
+fn from_str<'de, D>(deserializer: D) -> Result<u64, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let s: &str = Deserialize::deserialize(deserializer)?;
+    // do better hex decoding than this
+    s.parse::<u64>().map_err(de::Error::custom)
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct Board {
+  #[serde(serialize_with = "to_str", deserialize_with = "from_str")]
   black: u64,
+  #[serde(serialize_with = "to_str", deserialize_with = "from_str")]
   white: u64,
+  #[serde(serialize_with = "to_str", deserialize_with = "from_str")]
   pawns: u64,
+  #[serde(serialize_with = "to_str", deserialize_with = "from_str")]
   knights: u64,
+  #[serde(serialize_with = "to_str", deserialize_with = "from_str")]
   bishops: u64,
+  #[serde(serialize_with = "to_str", deserialize_with = "from_str")]
   rooks: u64,
+  #[serde(serialize_with = "to_str", deserialize_with = "from_str")]
   kings: u64,
+  #[serde(serialize_with = "to_str", deserialize_with = "from_str")]
   queens: u64,
+  #[serde(serialize_with = "to_str", deserialize_with = "from_str")]
   empty: u64,
 }
 
@@ -65,7 +90,7 @@ impl Default for Board {
       rooks:   0x81_00_00_00_00_00_00_81,
       queens:  0x10_00_00_00_00_00_00_10,
       kings:   0x08_00_00_00_00_00_00_08,
-      empty: 0x00_00_ff_ff_ff_ff_00_00,
+      empty:   0x00_00_ff_ff_ff_ff_00_00,
     }
   }
 }
@@ -184,7 +209,6 @@ impl Board {
     } else if self.kings & bit_mask != 0 {
       Piece::King
     } else {
-      debug_assert!(self.empty & bit_mask != 0, "index {} did not appear in any of the piece or empty masks!", index);
       Piece::Empty
     };
     (color, piece)

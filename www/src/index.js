@@ -32,13 +32,13 @@ const SQUARE_IMAGE_MAP = {
 };
 
 let gameState = wasm.get_initial_game_state();
-let legalMoves = wasm.get_legal_moves(gameState);
+let nextLegalGameStates = wasm.get_next_legal_game_states(gameState);
 
-gameState.board.forEach((square, index) => {
+wasm.convert_game_state_to_squares(gameState).forEach(([color, piece], index) => {
   const rankIndex = Math.floor(index / 8);
   const row = document.querySelector(`#rankIndex${rankIndex}`);
 
-  const cell = square.empty ? document.createElement('td') : getSquareCell(square);
+  const cell = color === 'Empty' ? document.createElement('td') : getSquareCell(color, piece);
   cell.dataset.index = index;
   cell.addEventListener('click', getOnClick(index));
   row.appendChild(cell);
@@ -87,17 +87,17 @@ document.addEventListener('click', () => {
 
 function updateGameState(_gameState) {
   gameState = _gameState;
-  legalMoves = wasm.get_legal_moves(_gameState);
+  nextLegalGameStates = wasm.get_next_legal_game_states(_gameState);
 }
 
-function getPieceImage(square) {
-  return SQUARE_IMAGE_MAP[square.color][square.piece];
+function getPieceImage(color, piece) {
+  return SQUARE_IMAGE_MAP[color][piece];
 }
 
-function getSquareCell(square) {
+function getSquareCell(color, piece) {
   const cell = document.createElement('td');
   const img = document.createElement('img');
-  img.src = getPieceImage(square);
+  img.src = getPieceImage(color, piece);
   cell.appendChild(img);
 
   return cell;
@@ -105,19 +105,25 @@ function getSquareCell(square) {
 
 function getOnClick(index) {
   return (event) => {
-    const square = gameState.board[index];
+    const [color] = wasm.get_square_at_index(gameState, index);
     const oldValidTargetSquares = validTargetSquares;
     const oldSelectedPiece = selectedPiece;
     if (selectedPiece != null && validTargetSquares.includes(index)) {
-      const move = legalMoves.find(
-        (_move) => _move.from === selectedPiece && _move.to === index,
+      const nextGameState = nextLegalGameStates.find(
+        (gs) => {
+          const { move_list: moveList } = gs;
+          const lastMove = moveList[moveList.length - 1];
+          return lastMove.from === selectedPiece && lastMove.to === index;
+        },
       );
+      const { move_list: moveList } = nextGameState;
+      const move = moveList[moveList.length - 1];
       gameState = wasm.perform_move(gameState, move);
       updateGameState(gameState);
       updateBoard(move);
       selectedPiece = null;
       validTargetSquares = null;
-    } else if (square.empty || selectedPiece === index) {
+    } else if (color === 'EMPTY' || selectedPiece === index) {
       selectedPiece = null;
       validTargetSquares = null;
     } else {
@@ -167,9 +173,10 @@ function updateCellClasses(oldSelectedPiece, oldValidTargetSquares, checkForChec
 function updateSelectedPiece(index) {
   selectedPiece = index;
   validTargetSquares = [];
-  legalMoves.forEach((move) => {
-    if (move.from === index) {
-      validTargetSquares.push(move.to);
+  nextLegalGameStates.forEach((gs) => {
+    const lastMove = gs.move_list[gs.move_list.length - 1];
+    if (lastMove.from === index) {
+      validTargetSquares.push(lastMove.to);
     }
   });
 }

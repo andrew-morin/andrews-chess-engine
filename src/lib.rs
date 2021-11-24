@@ -22,29 +22,44 @@ pub fn get_game_state_from_fen(fen: &str) -> JsValue {
 #[wasm_bindgen]
 pub fn get_initial_game_state() -> JsValue {
   let initial_game_state = GameState::default();
-  JsValue::from_serde(&initial_game_state).unwrap()
+  let result = JsValue::from_serde(&initial_game_state).unwrap();
+  result
+}
+
+#[wasm_bindgen]
+pub fn convert_game_state_to_squares(game_state: JsValue) -> JsValue {
+  let game_state: GameState = game_state.into_serde().unwrap();
+  let squares: Vec<(Color, Piece)> = (0..64).map(|index| game_state.board.get_square(index)).collect();
+  JsValue::from_serde(&squares).unwrap()
+}
+
+#[wasm_bindgen]
+pub fn get_square_at_index(game_state: JsValue, index: usize) -> JsValue {
+  let game_state: GameState = game_state.into_serde().unwrap();
+  let square = game_state.board.get_square(index);
+  JsValue::from_serde(&square).unwrap()
 }
 
 #[wasm_bindgen]
 pub fn get_pseudo_legal_moves(game_state: JsValue) -> JsValue {
   let game_state: GameState = game_state.into_serde().unwrap();
   let moves = game_state.generate_pseudo_legal_moves();
-  return JsValue::from_serde(&moves).unwrap();
+  JsValue::from_serde(&moves).unwrap()
 }
 
 #[wasm_bindgen]
-pub fn get_legal_moves(game_state: JsValue) -> JsValue {
+pub fn get_next_legal_game_states(game_state: JsValue) -> JsValue {
   let game_state: GameState = game_state.into_serde().unwrap();
   let moves = game_state.generate_legal_moves();
-  return JsValue::from_serde(&moves).unwrap();
+  JsValue::from_serde(&moves).unwrap()
 }
 
 #[wasm_bindgen]
 pub fn perform_move(game_state: JsValue, next_move: JsValue) -> JsValue {
   let mut game_state: GameState = game_state.into_serde().unwrap();
   let next_move: Move = next_move.into_serde().unwrap();
-  let game_state = game_state.perform_move(next_move);
-  return JsValue::from_serde(&game_state).unwrap();
+  game_state.perform_move(next_move);
+  JsValue::from_serde(&game_state).unwrap()
 }
 
 #[wasm_bindgen]
