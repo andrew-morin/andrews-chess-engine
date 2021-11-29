@@ -13,7 +13,6 @@ pub struct GameState {
   pub castle: CastleAvailability,
   pub en_passant_index: Option<usize>,
   pub move_list: Vec<Move>,
-  pub next_pseudo_legal_moves: Option<Vec<Move>>,
 }
 
 impl Default for GameState {
@@ -24,7 +23,6 @@ impl Default for GameState {
       castle: Default::default(),
       en_passant_index: None,
       move_list: vec!(),
-      next_pseudo_legal_moves: None,
     }
   }
 }
@@ -83,7 +81,6 @@ impl GameState {
     }
 
     self.turn = self.turn.opposite();
-    self.next_pseudo_legal_moves = None;
   }
 
   fn update_castle_availability(&mut self, from: usize, to: usize) {
@@ -115,17 +112,16 @@ impl GameState {
     let (current_is_in_check, _) = self.is_in_check();
     pseudo_legal_moves.iter()
         .filter(|&next_move| !next_move.castle || !current_is_in_check)
-        .filter_map(|&_move| {
+        .filter_map(|&next_move| {
           let mut game_state_clone = self.clone();
-          game_state_clone.perform_move(_move);
-          let moves = game_state_clone.generate_pseudo_legal_moves();
-          if _move.castle {
-            let check_index = (_move.from + _move.to) / 2;
-            let castle_into_or_through_check = moves.iter().any(|next_move| [_move.to, check_index].contains(&next_move.to));
-            if castle_into_or_through_check {
+          game_state_clone.perform_move(next_move);
+          if next_move.castle {
+            let castle_into_check = game_state_clone.is_opponent_in_check();
+            let check_index = (next_move.from + next_move.to) / 2;
+            let castle_through_check = game_state_clone.board.is_index_under_attack(check_index);
+            if castle_into_check || castle_through_check {
               return None;
             } else {
-              game_state_clone.next_pseudo_legal_moves = Some(moves);
               return Some(game_state_clone);
             }
           } else {
@@ -133,7 +129,6 @@ impl GameState {
             if is_in_check {
               None
             } else {
-              game_state_clone.next_pseudo_legal_moves = Some(moves);
               Some(game_state_clone)
             }
           }
@@ -157,11 +152,7 @@ impl GameState {
   }
 
   pub fn generate_pseudo_legal_moves(&self) -> Vec<Move> {
-    if let Some(next_pseudo_legal_moves) = &self.next_pseudo_legal_moves {
-      next_pseudo_legal_moves.clone()
-    } else {
-      self.generate_pseudo_legal_moves_inner(self.turn, false)
-    }
+    self.generate_pseudo_legal_moves_inner(self.turn, false)
   }
 
   fn generate_pseudo_legal_moves_inner(&self, color: Color, attack_only: bool) -> Vec<Move> {
