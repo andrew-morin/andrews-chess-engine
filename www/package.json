@@ -4,8 +4,8 @@
   "description": "web application for Andrew's Chess Engine",
   "main": "index.js",
   "scripts": {
-    "build": "wasm-pack build && yarn upgrade andrews-chess-engine && set NODE_OPTIONS=--openssl-legacy-provider && webpack --config webpack.config.js",
-    "start": "wasm-pack build && yarn upgrade andrews-chess-engine && set NODE_OPTIONS=--openssl-legacy-provider && webpack-dev-server"
+    "build": "wasm-pack build && yarn upgrade andrews-chess-engine && webpack --config webpack.config.js",
+    "start": "wasm-pack build && yarn upgrade andrews-chess-engine && webpack-dev-server"
   },
   "keywords": [
     "webassembly",
