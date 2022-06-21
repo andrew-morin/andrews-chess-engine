@@ -44,13 +44,31 @@ wasm.convert_game_state_to_squares(gameState).forEach(([color, piece], index) =>
   row.appendChild(cell);
 });
 
+let selectedPiece = null;
+let validTargetSquares = null;
+let isPromotion = false;
+
+document.addEventListener('click', () => {
+  const oldSelectedPiece = selectedPiece;
+  const oldValidTargetSquares = validTargetSquares;
+  selectedPiece = null;
+  validTargetSquares = null;
+  updateCellClasses(oldSelectedPiece, oldValidTargetSquares);
+});
+
 function updateBoard(move) {
   const targetCell = document.querySelector(`[data-index="${move.to}"]`);
   if (targetCell.firstChild) {
     targetCell.removeChild(targetCell.firstChild);
   }
   const sourceCell = document.querySelector(`[data-index="${move.from}"]`);
-  targetCell.appendChild(sourceCell.firstChild);
+  if (move.promotion_piece) {
+    sourceCell.removeChild(sourceCell?.firstChild);
+    const img = getPieceImage(gameState.turn, move.promotion_piece);
+    targetCell.appendChild(img);
+  } else {
+    targetCell.appendChild(sourceCell.firstChild);
+  }
   if (move.castle) {
     let rookFrom;
     let rookTo;
@@ -70,59 +88,45 @@ function updateBoard(move) {
     const sourceRookCell = document.querySelector(`[data-index="${rookFrom}"]`);
     const targetRookCell = document.querySelector(`[data-index="${rookTo}"]`);
     targetRookCell.appendChild(sourceRookCell.firstChild);
-    // sourceCell.removeChild(sourceCell.firstChild);
   }
 }
 
-let selectedPiece = null;
-let validTargetSquares = null;
-
-document.addEventListener('click', () => {
-  const oldSelectedPiece = selectedPiece;
-  const oldValidTargetSquares = validTargetSquares;
-  selectedPiece = null;
-  validTargetSquares = null;
-  updateCellClasses(oldSelectedPiece, oldValidTargetSquares);
-});
-
-function updateGameState(_gameState) {
-  gameState = _gameState;
-  nextLegalGameStates = wasm.get_next_legal_game_states(_gameState);
-}
-
 function getPieceImage(color, piece) {
-  return SQUARE_IMAGE_MAP[color][piece];
+  const img = document.createElement('img');
+  img.src = SQUARE_IMAGE_MAP[color][piece];
+  return img;
 }
 
 function getSquareCell(color, piece) {
   const cell = document.createElement('td');
-  const img = document.createElement('img');
-  img.src = getPieceImage(color, piece);
-  cell.appendChild(img);
+  cell.appendChild(getPieceImage(color, piece));
 
   return cell;
 }
 
 function getOnClick(index) {
   return (event) => {
+    if (isPromotion) {
+      hidePromotionChoice();
+    }
     const [color] = wasm.get_square_at_index(gameState, index);
     const oldValidTargetSquares = validTargetSquares;
     const oldSelectedPiece = selectedPiece;
     if (selectedPiece != null && validTargetSquares.includes(index)) {
-      const nextGameState = nextLegalGameStates.find(
+      const nextGameStates = nextLegalGameStates.filter(
         (gs) => {
           const { move_list: moveList } = gs;
           const lastMove = moveList[moveList.length - 1];
           return lastMove.from === selectedPiece && lastMove.to === index;
         },
       );
-      const { move_list: moveList } = nextGameState;
-      const move = moveList[moveList.length - 1];
-      gameState = wasm.perform_move(gameState, move);
-      updateGameState(gameState);
-      updateBoard(move);
-      selectedPiece = null;
-      validTargetSquares = null;
+      if (nextGameStates.length > 1) {
+        showPromotionChoice(nextGameStates);
+      } else {
+        const { move_list: moveList } = nextGameStates[0];
+        const move = moveList[moveList.length - 1];
+        performMove(move);
+      }
     } else if (color === 'EMPTY' || selectedPiece === index) {
       selectedPiece = null;
       validTargetSquares = null;
@@ -132,6 +136,43 @@ function getOnClick(index) {
     updateCellClasses(oldSelectedPiece, oldValidTargetSquares, true);
     event.stopPropagation();
   };
+}
+
+function performMove(move) {
+  updateBoard(move);
+  gameState = wasm.perform_move(gameState, move);
+  nextLegalGameStates = wasm.get_next_legal_game_states(gameState);
+  selectedPiece = null;
+  validTargetSquares = null;
+}
+
+function getPromOnClick(nextMove) {
+  return (event) => {
+    const oldValidTargetSquares = validTargetSquares;
+    const oldSelectedPiece = selectedPiece;
+    performMove(nextMove);
+    hidePromotionChoice();
+    updateCellClasses(oldSelectedPiece, oldValidTargetSquares, true);
+    event.stopPropagation();
+  };
+}
+
+function showPromotionChoice(nextGameStates) {
+  const promDiv = document.querySelector('#promotionPieces');
+  nextGameStates.forEach((state) => {
+    const { move_list: moveList } = state;
+    const nextMove = moveList[moveList.length - 1];
+    const cell = getSquareCell(gameState.turn, nextMove.promotion_piece);
+    cell.addEventListener('click', getPromOnClick(nextMove));
+    promDiv.appendChild(cell);
+  });
+  isPromotion = true;
+}
+
+function hidePromotionChoice() {
+  const promDiv = document.querySelector('#promotionPieces');
+  promDiv.replaceChildren();
+  isPromotion = false;
 }
 
 function updateCellClasses(oldSelectedPiece, oldValidTargetSquares, checkForCheck) {
