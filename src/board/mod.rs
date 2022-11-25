@@ -39,11 +39,7 @@ impl GameState {
 
   fn is_in_check_inner(&self, color: Color) -> (bool, usize) {
     let king_index = self.board.find_king(color);
-    if let Some(king_index) = king_index {
-      (self.board.is_index_under_attack(king_index as usize), king_index as usize)
-    } else {
-      (true, 0)
-    }
+    (self.board.is_index_under_attack(king_index as usize), king_index as usize)
   }
 
   pub fn perform_move(&mut self, next_move: Move) {

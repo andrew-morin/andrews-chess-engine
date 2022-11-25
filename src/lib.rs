@@ -1,5 +1,4 @@
 #![feature(const_mut_refs)]
-#![feature(int_log)]
 #![feature(test)]
 
 #[macro_use]

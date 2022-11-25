@@ -109,13 +109,13 @@ impl Board {
     self.empty & bit_mask != 0
   }
 
-  pub fn find_king(&self, color: Color) -> Option<u32> {
+  pub fn find_king(&self, color: Color) -> u32 {
     if color == Color::White {
       let king_bit_mask = self.kings & self.white;
-      return king_bit_mask.checked_log2();
+      return king_bit_mask.ilog2();
     } else {
       let king_bit_mask = self.kings & self.black;
-      return king_bit_mask.checked_log2();
+      return king_bit_mask.ilog2();
     }
   }
 
