@@ -135,6 +135,7 @@ impl GameState {
         }).collect()
   }
 
+  #[allow(dead_code)]
   pub fn generate_legal_moves_at_depth(&self, depth: usize) -> Vec<GameState> {
     let mut game_states = self.generate_legal_moves();
 

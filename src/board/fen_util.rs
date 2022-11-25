@@ -91,6 +91,7 @@ pub fn get_game_state_from_fen(fen: &str) -> GameState {
   GameState { board, turn, castle, ..Default::default() }
 }
 
+#[allow(dead_code)]
 pub fn get_square_from_index(index: usize) -> String {
   let file = match index % 8 {
     0 => 'a',
@@ -107,6 +108,7 @@ pub fn get_square_from_index(index: usize) -> String {
   file.to_string() + &rank.to_string()
 }
 
+#[allow(dead_code)]
 fn game_state_to_fen_string(game_state: &GameState) -> String {
   let board = board_to_fen_string(&game_state.board);
   let turn = match game_state.turn {
@@ -117,6 +119,7 @@ fn game_state_to_fen_string(game_state: &GameState) -> String {
   format!("{} {} {}", board, turn, castle)
 }
 
+#[allow(dead_code)]
 fn castle_availability_to_fen(castle_availability: &CastleAvailability) -> String {
   let mut output = String::new();
   if castle_availability.white_kingside {
@@ -139,6 +142,7 @@ fn castle_availability_to_fen(castle_availability: &CastleAvailability) -> Strin
   output
 }
 
+#[allow(dead_code)]
 fn board_to_fen_string(board: &Board) -> String {
   let mut board_str = String::new();
   let mut space_count = 0;
