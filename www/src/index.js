@@ -144,6 +144,22 @@ function performMove(move) {
   nextLegalGameStates = wasm.get_next_legal_game_states(gameState);
   selectedPiece = null;
   validTargetSquares = null;
+  if (nextLegalGameStates.length === 0) {
+    const inCheckReturn = wasm.in_check(gameState);
+    const inCheck = inCheckReturn[0];
+    if (inCheck) {
+      if (gameState.turn === 'White') {
+        // eslint-disable-next-line no-alert
+        alert('You lose :(');
+      } else {
+        // eslint-disable-next-line no-alert
+        alert('You win! :D');
+      }
+    } else {
+      // eslint-disable-next-line no-alert
+      alert("It's a draw! :/");
+    }
+  }
 }
 
 function getPromOnClick(nextMove) {
