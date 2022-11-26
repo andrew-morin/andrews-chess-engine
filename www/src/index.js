@@ -134,6 +134,7 @@ function getOnClick(index) {
       updateSelectedPiece(index);
     }
     updateCellClasses(oldSelectedPiece, oldValidTargetSquares, true);
+    alertForWinLoseDraw();
     event.stopPropagation();
   };
 }
@@ -144,6 +145,9 @@ function performMove(move) {
   nextLegalGameStates = wasm.get_next_legal_game_states(gameState);
   selectedPiece = null;
   validTargetSquares = null;
+}
+
+function alertForWinLoseDraw() {
   if (nextLegalGameStates.length === 0) {
     const inCheckReturn = wasm.in_check(gameState);
     const inCheck = inCheckReturn[0];
@@ -169,6 +173,7 @@ function getPromOnClick(nextMove) {
     performMove(nextMove);
     hidePromotionChoice();
     updateCellClasses(oldSelectedPiece, oldValidTargetSquares, true);
+    alertForWinLoseDraw();
     event.stopPropagation();
   };
 }
@@ -212,15 +217,14 @@ function updateCellClasses(oldSelectedPiece, oldValidTargetSquares, checkForChec
     const cell = document.querySelector(`[data-index="${selectedPiece}"]`);
     cell.classList.add('source_square');
   }
-  const checkedKing = document.querySelector('.king_check');
-  if (checkedKing) {
-    checkedKing.classList.remove('king_check');
-  }
   if (checkForCheck) {
+    const checkedKing = document.querySelector('.king_check');
     const inCheckReturn = wasm.in_check(gameState);
     const inCheck = inCheckReturn[0];
     const kingIndex = inCheckReturn[1];
-    if (inCheck) {
+    if (!inCheck && checkedKing) {
+      checkedKing.classList.remove('king_check');
+    } else if (inCheck && !checkedKing) {
       const cell = document.querySelector(`[data-index="${kingIndex}"]`);
       cell.classList.add('king_check');
     }
