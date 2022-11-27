@@ -222,9 +222,9 @@ function updateCellClasses(oldSelectedPiece, oldValidTargetSquares, checkForChec
     const inCheckReturn = wasm.in_check(gameState);
     const inCheck = inCheckReturn[0];
     const kingIndex = inCheckReturn[1];
-    if (!inCheck && checkedKing) {
+    if (checkedKing) {
       checkedKing.classList.remove('king_check');
-    } else if (inCheck && !checkedKing) {
+    } else if (inCheck) {
       const cell = document.querySelector(`[data-index="${kingIndex}"]`);
       cell.classList.add('king_check');
     }
