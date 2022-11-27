@@ -1,27 +1,31 @@
-const CopyWebpackPlugin = require("copy-webpack-plugin");
+const CopyWebpackPlugin = require('copy-webpack-plugin');
 const path = require('path');
 
 module.exports = {
-  entry: "./src/bootstrap.js",
+  entry: './src/bootstrap.js',
   output: {
-    path: path.resolve(__dirname, "dist"),
-    filename: "bootstrap.js",
+    path: path.resolve(__dirname, 'dist'),
+    filename: 'bootstrap.js',
   },
-  mode: "development",
+  mode: 'development',
   plugins: [
     new CopyWebpackPlugin({
-      patterns: ['./src/index.html', './src/style.css']
-    })
+      patterns: [
+        './src/index.html',
+        './src/style.css',
+        { from: 'src/piece_images', to: 'assets' },
+      ],
+    }),
   ],
   module: {
     rules: [
       {
         test: /\.svg/,
-        type: 'asset/resource'
-      }
-    ]
+        type: 'asset/resource',
+      },
+    ],
   },
   experiments: {
-    syncWebAssembly: true
-  }
+    syncWebAssembly: true,
+  },
 };

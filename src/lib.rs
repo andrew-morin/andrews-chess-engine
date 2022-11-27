@@ -10,6 +10,7 @@ mod engine;
 
 use board::GameState;
 use board::types::*;
+use engine::generate::search;
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
@@ -21,8 +22,7 @@ pub fn get_game_state_from_fen(fen: &str) -> JsValue {
 #[wasm_bindgen]
 pub fn get_initial_game_state() -> JsValue {
   let initial_game_state = GameState::default();
-  let result = JsValue::from_serde(&initial_game_state).unwrap();
-  result
+  JsValue::from_serde(&initial_game_state).unwrap()
 }
 
 #[wasm_bindgen]
@@ -69,4 +69,15 @@ pub fn in_check(game_state: JsValue) -> InCheckReturn {
   let game_state: GameState = game_state.into_serde().unwrap();
   let (b, i) = game_state.is_in_check();
   InCheckReturn(b, i)
+}
+
+
+#[wasm_bindgen]
+pub fn perform_best_engine_move(game_state: JsValue) -> JsValue {
+  let mut game_state: GameState = game_state.into_serde().unwrap();
+  let next_move = search(&game_state);
+  if let Some(next_move) = next_move {
+    game_state.perform_move(next_move);
+  }
+  JsValue::from_serde(&game_state).unwrap()
 }
