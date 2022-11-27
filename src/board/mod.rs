@@ -359,6 +359,7 @@ mod state_tests {
 
 #[cfg(test)]
 mod perft_tests {
+  // Tests based on https://www.chessprogramming.org/Perft_Results
   use std::collections::HashMap;
   use super::*;
   use super::fen_util::*;
