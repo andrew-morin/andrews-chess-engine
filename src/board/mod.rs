@@ -30,7 +30,7 @@ impl Default for GameState {
 impl GameState {
     pub fn is_opponent_in_check(&self) -> bool {
         let (is_in_check, _) = self.is_in_check_inner(self.turn.opposite());
-        return is_in_check;
+        is_in_check
     }
 
     pub fn is_in_check(&self) -> (bool, usize) {
@@ -121,9 +121,9 @@ impl GameState {
                     let castle_through_check =
                         game_state_clone.board.is_index_under_attack(check_index);
                     if castle_into_check || castle_through_check {
-                        return None;
+                        None
                     } else {
-                        return Some(game_state_clone);
+                        Some(game_state_clone)
                     }
                 } else {
                     let is_in_check = game_state_clone.is_opponent_in_check();
@@ -425,7 +425,7 @@ mod state_tests {
         let game_state =
             get_game_state_from_fen("rnbqkbnr/ppp1pppp/3p4/1B6/8/4P3/PPPP1PPP/RNBQK1NR b KQkq -");
         assert_eq!(game_state.is_in_check(), (true, 4));
-        assert_eq!(game_state.is_opponent_in_check(), false);
+        assert!(!game_state.is_opponent_in_check());
     }
 }
 
@@ -588,7 +588,8 @@ mod perft_tests {
         assert_eq!(game_states.len(), 89890);
     }
 
-    fn print_move_map(game_states: &Vec<GameState>) {
+    #[allow(dead_code)]
+    fn print_move_map(game_states: &[GameState]) {
         let mut move_map: HashMap<String, usize> = HashMap::new();
         game_states.iter().for_each(|game_state| {
             let first_move = game_state.move_list.get(0);

@@ -13,6 +13,16 @@ use board::GameState;
 use engine::generate::search;
 use wasm_bindgen::prelude::*;
 
+extern crate web_sys;
+
+// A macro to provide `println!(..)`-style syntax for `console.log` logging.
+#[macro_export]
+macro_rules! log {
+    ( $( $t:tt )* ) => {
+        web_sys::console::log_1(&format!( $( $t )* ).into());
+    }
+}
+
 #[wasm_bindgen]
 pub fn get_game_state_from_fen(fen: &str) -> JsValue {
     let initial_game_state = board::fen_util::get_game_state_from_fen(fen);

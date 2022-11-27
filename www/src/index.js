@@ -34,15 +34,20 @@ const SQUARE_IMAGE_MAP = {
 let gameState = wasm.get_initial_game_state();
 let nextLegalGameStates = wasm.get_next_legal_game_states(gameState);
 
-wasm.convert_game_state_to_squares(gameState).forEach(([color, piece], index) => {
-  const rankIndex = Math.floor(index / 8);
-  const row = document.querySelector(`#rankIndex${rankIndex}`);
+wasm
+  .convert_game_state_to_squares(gameState)
+  .forEach(([color, piece], index) => {
+    const rankIndex = Math.floor(index / 8);
+    const row = document.querySelector(`#rankIndex${rankIndex}`);
 
-  const cell = color === 'Empty' ? document.createElement('td') : getSquareCell(color, piece);
-  cell.dataset.index = index;
-  cell.addEventListener('click', getOnClick(index));
-  row.appendChild(cell);
-});
+    const cell =
+      color === 'Empty'
+        ? document.createElement('td')
+        : getSquareCell(color, piece);
+    cell.dataset.index = index;
+    cell.addEventListener('click', getOnClick(index));
+    row.appendChild(cell);
+  });
 
 let selectedPiece = null;
 let validTargetSquares = null;
@@ -115,14 +120,16 @@ function getOnClick(index) {
     const oldValidTargetSquares = validTargetSquares;
     const oldSelectedPiece = selectedPiece;
     let move;
-    if (gameState.turn == playerColor && selectedPiece != null && validTargetSquares.includes(index)) {
-      const nextGameStates = nextLegalGameStates.filter(
-        (gs) => {
-          const { move_list: moveList } = gs;
-          const lastMove = moveList[moveList.length - 1];
-          return lastMove.from === selectedPiece && lastMove.to === index;
-        },
-      );
+    if (
+      gameState.turn == playerColor &&
+      selectedPiece != null &&
+      validTargetSquares.includes(index)
+    ) {
+      const nextGameStates = nextLegalGameStates.filter((gs) => {
+        const { move_list: moveList } = gs;
+        const lastMove = moveList[moveList.length - 1];
+        return lastMove.from === selectedPiece && lastMove.to === index;
+      });
       if (nextGameStates.length > 1) {
         showPromotionChoice(nextGameStates);
       } else {
@@ -152,7 +159,6 @@ function performMove(move) {
   validTargetSquares = null;
   checkForWinLoseDraw();
   performComputerMove();
-  console.log(gameState);
 }
 
 function performComputerMove() {
@@ -215,7 +221,11 @@ function hidePromotionChoice() {
   isPromotion = false;
 }
 
-function updateCellClasses(oldSelectedPiece, oldValidTargetSquares, checkForCheck = false) {
+function updateCellClasses(
+  oldSelectedPiece,
+  oldValidTargetSquares,
+  checkForCheck = false
+) {
   if (oldValidTargetSquares != null) {
     oldValidTargetSquares.forEach((index) => {
       const cell = document.querySelector(`[data-index="${index}"]`);

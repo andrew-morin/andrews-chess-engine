@@ -100,11 +100,53 @@ impl Default for Board {
 }
 
 impl Board {
-    fn get_color_bitmask(&self, color: Color) -> u64 {
+    pub fn get_color_bitmask(&self, color: Color) -> u64 {
         match color {
             Color::Black => self.black,
             Color::White => self.white,
             Color::Empty => self.empty,
+        }
+    }
+
+    fn set_color_bitmask(&mut self, color: Color, mask: u64) {
+        match color {
+            Color::Black => self.black = mask,
+            Color::White => self.white = mask,
+            Color::Empty => self.empty = mask,
+        }
+    }
+
+    pub fn get_piece_bitmask(&self, piece: Piece) -> u64 {
+        match piece {
+            Piece::Pawn => self.pawns,
+            Piece::Bishop => self.bishops,
+            Piece::Knight => self.knights,
+            Piece::Rook => self.rooks,
+            Piece::Queen => self.queens,
+            Piece::King => self.kings,
+            Piece::Empty => self.empty,
+        }
+    }
+
+    fn set_piece_bitmask(&mut self, piece: Piece, mask: u64) {
+        match piece {
+            Piece::Pawn => self.pawns = mask,
+            Piece::Bishop => self.bishops = mask,
+            Piece::Knight => self.knights = mask,
+            Piece::Rook => self.rooks = mask,
+            Piece::Queen => self.queens = mask,
+            Piece::King => self.kings = mask,
+            Piece::Empty => self.empty = mask,
+        }
+    }
+
+    fn get_square_color_mask(&self, bit_mask: u64) -> Color {
+        if self.black & bit_mask != 0 {
+            Color::Black
+        } else if self.white & bit_mask != 0 {
+            Color::White
+        } else {
+            Color::Empty
         }
     }
 
@@ -116,35 +158,27 @@ impl Board {
     pub fn find_king(&self, color: Color) -> u32 {
         if color == Color::White {
             let king_bit_mask = self.kings & self.white;
-            return king_bit_mask.ilog2();
+            king_bit_mask.ilog2()
         } else {
             let king_bit_mask = self.kings & self.black;
-            return king_bit_mask.ilog2();
+            king_bit_mask.ilog2()
         }
     }
 
     pub fn is_index_under_attack(&self, index: usize) -> bool {
-        if self.is_pawn_attacking_index(index) {
-            return true;
-        } else if self.is_hop_piece_attack_index(index, KNIGHT_ATTACK_BITMASKS, self.knights) {
-            return true;
-        } else if self.is_hop_piece_attack_index(index, KING_ATTACK_BITMASKS, self.kings) {
-            return true;
-        } else if self.is_slide_piece_attack_index(
-            CARDINAL_ATTACK_BITMASKS,
-            self.rooks | self.queens,
-            index,
-        ) {
-            return true;
-        } else if self.is_slide_piece_attack_index(
-            DIAGONAL_ATTACK_BITMASKS,
-            self.bishops | self.queens,
-            index,
-        ) {
-            return true;
-        } else {
-            return false;
-        }
+        self.is_pawn_attacking_index(index)
+            || self.is_hop_piece_attack_index(index, KNIGHT_ATTACK_BITMASKS, self.knights)
+            || self.is_hop_piece_attack_index(index, KING_ATTACK_BITMASKS, self.kings)
+            || self.is_slide_piece_attack_index(
+                CARDINAL_ATTACK_BITMASKS,
+                self.rooks | self.queens,
+                index,
+            )
+            || self.is_slide_piece_attack_index(
+                DIAGONAL_ATTACK_BITMASKS,
+                self.bishops | self.queens,
+                index,
+            )
     }
 
     fn is_pawn_attacking_index(&self, index: usize) -> bool {
@@ -210,16 +244,6 @@ impl Board {
             })
     }
 
-    fn get_square_color_mask(&self, bit_mask: u64) -> Color {
-        if self.black & bit_mask != 0 {
-            Color::Black
-        } else if self.white & bit_mask != 0 {
-            Color::White
-        } else {
-            Color::Empty
-        }
-    }
-
     pub fn get_square(&self, index: usize) -> (Color, Piece) {
         let bit_mask: u64 = 1 << index;
         let color = self.get_square_color_mask(bit_mask);
@@ -268,44 +292,26 @@ impl Board {
         let (from_color, from_piece) = self.get_square(from);
         let (to_color, to_piece) = self.get_square(to);
         let capture = to_color != Color::Empty;
-        if from_color == Color::Black {
-            self.black ^= both_bit_mask;
-            if capture {
-                self.white ^= to_bit_mask;
-                self.empty |= from_bit_mask;
-            } else {
-                self.empty ^= both_bit_mask;
-            }
+        let color_bits = self.get_color_bitmask(from_color);
+        self.set_color_bitmask(from_color, color_bits ^ both_bit_mask);
+        let empty_bits = self.get_color_bitmask(Color::Empty);
+        if capture {
+            let opp_color = from_color.opposite();
+            let opp_color_bits = self.get_color_bitmask(opp_color);
+            self.set_color_bitmask(opp_color, opp_color_bits ^ to_bit_mask);
+            self.set_color_bitmask(Color::Empty, empty_bits ^ from_bit_mask);
         } else {
-            self.white ^= both_bit_mask;
-            if capture {
-                self.black ^= to_bit_mask;
-                self.empty |= from_bit_mask;
-            } else {
-                self.empty ^= both_bit_mask;
-            }
+            self.set_color_bitmask(Color::Empty, empty_bits ^ both_bit_mask);
         }
 
         if capture {
-            let to_piece_bits = self.get_bits_for_piece(to_piece);
-            *to_piece_bits ^= to_bit_mask;
+            let to_piece_bits = self.get_piece_bitmask(to_piece);
+            self.set_piece_bitmask(to_piece, to_piece_bits ^ to_bit_mask);
         }
-        let from_piece_bits = self.get_bits_for_piece(from_piece);
-        *from_piece_bits ^= both_bit_mask;
+        let from_piece_bits = self.get_piece_bitmask(from_piece);
+        self.set_piece_bitmask(from_piece, from_piece_bits ^ both_bit_mask);
 
         self.assert_board_state(format!("from: {}, to: {}", from, to));
-    }
-
-    fn get_bits_for_piece(&mut self, piece: Piece) -> &mut u64 {
-        match piece {
-            Piece::Pawn => &mut self.pawns,
-            Piece::Bishop => &mut self.bishops,
-            Piece::Knight => &mut self.knights,
-            Piece::Rook => &mut self.rooks,
-            Piece::Queen => &mut self.queens,
-            Piece::King => &mut self.kings,
-            Piece::Empty => &mut self.empty,
-        }
     }
 
     pub fn update_square(&mut self, index: usize, color: Color, piece: Piece) {

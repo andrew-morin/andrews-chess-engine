@@ -13,7 +13,7 @@ pub fn get_game_state_from_fen(fen: &str) -> GameState {
     let mut found_slash = true;
     loop {
         let c = chars.next();
-        if c == None {
+        if c.is_none() {
             panic!("Invalid FEN: '{}', ended too early", fen);
         }
         let c = c.unwrap();
@@ -72,7 +72,7 @@ pub fn get_game_state_from_fen(fen: &str) -> GameState {
         None => panic!("Invalid FEN: '{}', ended too early", fen),
     };
     let c = chars.next();
-    if c == None {
+    if c.is_none() {
         return GameState {
             board,
             turn,
@@ -87,7 +87,7 @@ pub fn get_game_state_from_fen(fen: &str) -> GameState {
 
     let mut c = chars.next();
     if Some('-') != c {
-        while c != None {
+        while c.is_some() {
             let castle_char = c.unwrap();
 
             match castle_char {
@@ -187,7 +187,7 @@ fn board_to_fen_string(board: &Board) -> String {
                 board_str.push_str(&space_count.to_string());
                 space_count = 0;
             }
-            board_str.push_str("/");
+            board_str.push('/');
         }
     }
 
