@@ -1,11 +1,8 @@
 use std::cmp::Ordering;
 
-use crate::{
-    board::{
-        types::{Board, Color, Move, Piece},
-        GameState,
-    },
-    log,
+use crate::board::{
+    types::{Board, Color, Move, Piece},
+    GameState,
 };
 use rand::prelude::SliceRandom;
 
@@ -49,12 +46,10 @@ pub fn search(game_state: &GameState) -> Option<Move> {
     };
     for state in &states[1..] {
         let eval = sign * evaluate(state);
-        // log!("{}", eval);
         match eval.cmp(&best_eval) {
             Ordering::Greater => {
                 best_states = vec![state];
                 best_eval = eval;
-                log!("{}", eval);
             }
             Ordering::Equal => {
                 best_states.push(state);
@@ -86,4 +81,29 @@ fn get_piece_eval(board: &Board, color: Color, piece: Piece) -> i32 {
     let bits = board.get_color_bitmask(color) & board.get_piece_bitmask(piece);
     // We can never have all 32 bits on, so this cast is safe
     piece.get_value() * bits.count_ones() as i32
+}
+
+#[cfg(test)]
+mod search_tests {
+    use super::*;
+    use crate::board::fen_util::*;
+    use crate::board::GameState;
+
+    #[test]
+    fn search_start_pos() {
+        let m = search(&GameState::default());
+        assert!(m.is_some());
+    }
+
+    #[test]
+    fn search_capture() {
+        let state =
+            get_game_state_from_fen("rnbqkbnr/pppp1ppp/8/4p3/3P4/8/PPP1PPPP/RNBQKBNR w KQkq - 0 1");
+        let opt_m = search(&state);
+        assert!(opt_m.is_some());
+        let m = opt_m.unwrap();
+        assert_eq!(35, m.from);
+        assert_eq!(28, m.to);
+        assert!(m.capture);
+    }
 }
