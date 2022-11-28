@@ -150,7 +150,7 @@ impl Board {
         }
     }
 
-    pub fn is_index_empty(&self, index: usize) -> bool {
+    pub fn is_index_empty(&self, index: u32) -> bool {
         let bit_mask: u64 = 1 << index;
         self.empty & bit_mask != 0
     }
@@ -165,7 +165,7 @@ impl Board {
         }
     }
 
-    pub fn is_index_under_attack(&self, index: usize) -> bool {
+    pub fn is_index_under_attack(&self, index: u32) -> bool {
         self.is_pawn_attacking_index(index)
             || self.is_hop_piece_attack_index(index, KNIGHT_ATTACK_BITMASKS, self.knights)
             || self.is_hop_piece_attack_index(index, KING_ATTACK_BITMASKS, self.kings)
@@ -181,10 +181,10 @@ impl Board {
             )
     }
 
-    fn is_pawn_attacking_index(&self, index: usize) -> bool {
+    fn is_pawn_attacking_index(&self, index: u32) -> bool {
         let bit_mask: u64 = 1 << index;
         let color = self.get_square_color_mask(bit_mask);
-        let piece_mailbox_index = BOARD_INDEX_TO_MAILBOX_INDEX[index];
+        let piece_mailbox_index = BOARD_INDEX_TO_MAILBOX_INDEX[index as usize];
         let opponent_pawn_mailbox_indices = if color == Color::White {
             [piece_mailbox_index - 11, piece_mailbox_index - 9]
         } else {
@@ -195,7 +195,7 @@ impl Board {
         opponent_pawn_mailbox_indices
             .iter()
             .any(|&pawn_mailbox_index| {
-                let pawn_index = MAILBOX[pawn_mailbox_index];
+                let pawn_index = MAILBOX[pawn_mailbox_index as usize];
                 if let Some(pawn_index) = pawn_index {
                     opponent_pawns_bitmask & (1 << pawn_index) != 0
                 } else {
@@ -206,7 +206,7 @@ impl Board {
 
     fn is_hop_piece_attack_index(
         &self,
-        index: usize,
+        index: u32,
         attack_indices: [u64; 64],
         piece_bitmask: u64,
     ) -> bool {
@@ -214,7 +214,7 @@ impl Board {
         let color = self.get_square_color_mask(bit_mask);
         let opponent_color_bitmask = self.get_color_bitmask(color.opposite());
         let opponent_bitmask = piece_bitmask & opponent_color_bitmask;
-        let attack_bitmask = attack_indices[index];
+        let attack_bitmask = attack_indices[index as usize];
         attack_bitmask & opponent_bitmask != 0
     }
 
@@ -222,14 +222,14 @@ impl Board {
         &self,
         attack_bitmasks: [[u64; 4]; 64],
         slide_piece_bitmask: u64,
-        index: usize,
+        index: u32,
     ) -> bool {
         let bit_mask: u64 = 1 << index;
         let color = self.get_square_color_mask(bit_mask);
         let opponent_color_bitmask = self.get_color_bitmask(color.opposite());
         let opponent_cardinal_piece_bitmask = slide_piece_bitmask & opponent_color_bitmask;
         let other_piece_bitmask = !self.empty ^ opponent_cardinal_piece_bitmask;
-        let attack_bitmasks = attack_bitmasks[index];
+        let attack_bitmasks = attack_bitmasks[index as usize];
         attack_bitmasks
             .iter()
             .enumerate()
@@ -244,7 +244,7 @@ impl Board {
             })
     }
 
-    pub fn get_square(&self, index: usize) -> (Color, Piece) {
+    pub fn get_square(&self, index: u32) -> (Color, Piece) {
         let bit_mask: u64 = 1 << index;
         let color = self.get_square_color_mask(bit_mask);
         let piece = if self.pawns & bit_mask != 0 {
@@ -265,12 +265,12 @@ impl Board {
         (color, piece)
     }
 
-    pub fn is_index_of_color(&self, index: usize, color: Color) -> bool {
+    pub fn is_index_of_color(&self, index: u32, color: Color) -> bool {
         let bit_mask: u64 = 1 << index;
         self.get_color_bitmask(color) & bit_mask != 0
     }
 
-    pub fn clear_square(&mut self, index: usize) {
+    pub fn clear_square(&mut self, index: u32) {
         let bit_mask: u64 = 1 << index;
         let bit_mask_complement: u64 = !bit_mask;
         self.empty |= bit_mask;
@@ -284,7 +284,7 @@ impl Board {
         self.kings &= bit_mask_complement;
     }
 
-    pub fn move_from_to(&mut self, from: usize, to: usize) {
+    pub fn move_from_to(&mut self, from: u32, to: u32) {
         let from_bit_mask: u64 = 1 << from;
         let to_bit_mask: u64 = 1 << to;
         let both_bit_mask: u64 = from_bit_mask | to_bit_mask;
@@ -314,7 +314,7 @@ impl Board {
         self.assert_board_state(format!("from: {}, to: {}", from, to));
     }
 
-    pub fn update_square(&mut self, index: usize, color: Color, piece: Piece) {
+    pub fn update_square(&mut self, index: u32, color: Color, piece: Piece) {
         let bit_mask: u64 = 1 << index;
         let bit_mask_complement: u64 = !bit_mask;
         match color {
@@ -483,8 +483,8 @@ impl Board {
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq)]
 pub struct Move {
-    pub from: usize,
-    pub to: usize,
+    pub from: u32,
+    pub to: u32,
     pub capture: bool,
     pub en_passant: bool,
     pub castle: bool,
@@ -493,14 +493,14 @@ pub struct Move {
 }
 
 impl Move {
-    pub fn new(from: usize, to: usize) -> Move {
+    pub fn new(from: u32, to: u32) -> Move {
         Move {
             from,
             to,
             ..Default::default()
         }
     }
-    pub fn capture(from: usize, to: usize) -> Move {
+    pub fn capture(from: u32, to: u32) -> Move {
         Move {
             from,
             to,
@@ -508,7 +508,7 @@ impl Move {
             ..Default::default()
         }
     }
-    pub fn en_passant(from: usize, to: usize) -> Move {
+    pub fn en_passant(from: u32, to: u32) -> Move {
         Move {
             from,
             to,
@@ -517,7 +517,7 @@ impl Move {
             ..Default::default()
         }
     }
-    pub fn castle(from: usize, to: usize) -> Move {
+    pub fn castle(from: u32, to: u32) -> Move {
         Move {
             from,
             to,
@@ -525,7 +525,7 @@ impl Move {
             ..Default::default()
         }
     }
-    pub fn two_square_pawn_move(from: usize, to: usize) -> Move {
+    pub fn two_square_pawn_move(from: u32, to: u32) -> Move {
         Move {
             from,
             to,
@@ -533,7 +533,7 @@ impl Move {
             ..Default::default()
         }
     }
-    pub fn promotion(from: usize, to: usize, promotion_piece: Piece) -> Move {
+    pub fn promotion(from: u32, to: u32, promotion_piece: Piece) -> Move {
         Move {
             from,
             to,
@@ -541,7 +541,7 @@ impl Move {
             ..Default::default()
         }
     }
-    pub fn promotion_capture(from: usize, to: usize, promotion_piece: Piece) -> Move {
+    pub fn promotion_capture(from: u32, to: u32, promotion_piece: Piece) -> Move {
         Move {
             from,
             to,

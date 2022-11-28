@@ -11,7 +11,7 @@ pub struct GameState {
     pub board: Board,
     pub turn: Color,
     pub castle: CastleAvailability,
-    pub en_passant_index: Option<usize>,
+    pub en_passant_index: Option<u32>,
     pub move_list: Vec<Move>,
 }
 
@@ -27,22 +27,32 @@ impl Default for GameState {
     }
 }
 
+#[derive(Debug, Default, PartialEq)]
+struct AttackData {
+    pin_ray_bitmask: u64,
+    opponent_sliding_attack_bitmask: u64,
+    opponent_knight_attack_bitmask: u64,
+    opponent_pawn_attack_bitmask: u64,
+    opponent_attack_bitmask: u64,
+    check_ray_bitmask: u64,
+    in_check: bool,
+    in_double_check: bool,
+    pin_exists_in_position: bool,
+}
+
 impl GameState {
     pub fn is_opponent_in_check(&self) -> bool {
         let (is_in_check, _) = self.is_in_check_inner(self.turn.opposite());
         is_in_check
     }
 
-    pub fn is_in_check(&self) -> (bool, usize) {
+    pub fn is_in_check(&self) -> (bool, u32) {
         self.is_in_check_inner(self.turn)
     }
 
-    fn is_in_check_inner(&self, color: Color) -> (bool, usize) {
+    fn is_in_check_inner(&self, color: Color) -> (bool, u32) {
         let king_index = self.board.find_king(color);
-        (
-            self.board.is_index_under_attack(king_index as usize),
-            king_index as usize,
-        )
+        (self.board.is_index_under_attack(king_index), king_index)
     }
 
     pub fn perform_move(&mut self, next_move: Move) {
@@ -82,7 +92,7 @@ impl GameState {
         self.turn = self.turn.opposite();
     }
 
-    fn update_castle_availability(&mut self, from: usize, to: usize) {
+    fn update_castle_availability(&mut self, from: u32, to: u32) {
         let black_king_moved = from == 4;
         let black_queen_rook_moved_or_captured = from == 0 || to == 0;
         let black_king_rook_moved_or_captured = from == 7 || to == 7;
@@ -105,7 +115,7 @@ impl GameState {
     }
 
     // Generates pseudo legal moves, then removes the ones with the king in check.
-    // This is slow and should be updated later.
+    // TODO: This is slow and should be updated later.
     pub fn generate_legal_moves(&self) -> Vec<GameState> {
         let pseudo_legal_moves = self.generate_pseudo_legal_moves();
         let (current_is_in_check, _) = self.is_in_check();
@@ -138,7 +148,189 @@ impl GameState {
     }
 
     #[allow(dead_code)]
-    pub fn generate_legal_moves_at_depth(&self, depth: usize) -> Vec<GameState> {
+    pub fn generate_legal_moves_new(&self) -> Vec<GameState> {
+        let _attack_data = self.generate_attack_data();
+
+        vec![]
+    }
+
+    fn generate_attack_data(&self) -> AttackData {
+        let friendly_king_bit =
+            self.board.get_color_bitmask(self.turn) & self.board.get_piece_bitmask(Piece::King);
+        let friendly_king_index = friendly_king_bit.trailing_zeros();
+        let mut attack_data = AttackData::default();
+        let opp_color = self.turn.opposite();
+        let opp_bits = self.board.get_color_bitmask(opp_color);
+        let opp_queen_bits = opp_bits & self.board.get_piece_bitmask(Piece::Queen);
+        let opp_rook_bits = opp_bits & self.board.get_piece_bitmask(Piece::Rook);
+        let opp_bishop_bits = opp_bits & self.board.get_piece_bitmask(Piece::Bishop);
+        let opp_queen_rook_indices = bits_to_indices(opp_queen_bits | opp_rook_bits);
+        let opp_queen_bishop_indices = bits_to_indices(opp_queen_bits | opp_bishop_bits);
+
+        attack_data.opponent_sliding_attack_bitmask |= self.get_sliding_attack_data(
+            &opp_queen_rook_indices,
+            CARDINAL_MAILBOX_DIRECTION_OFFSETS_ALL,
+            friendly_king_index,
+        );
+        attack_data.opponent_sliding_attack_bitmask |= self.get_sliding_attack_data(
+            &opp_queen_bishop_indices,
+            DIAGONAL_MAILBOX_DIRECTION_OFFSETS_ALL,
+            friendly_king_index,
+        );
+
+        if !opp_queen_rook_indices.is_empty() {
+            self.check_pins_and_checks(
+                CARDINAL_MAILBOX_DIRECTION_OFFSETS_ALL,
+                false,
+                friendly_king_index,
+                &mut attack_data,
+            );
+        }
+        if !attack_data.in_double_check && !opp_queen_bishop_indices.is_empty() {
+            self.check_pins_and_checks(
+                DIAGONAL_MAILBOX_DIRECTION_OFFSETS_ALL,
+                true,
+                friendly_king_index,
+                &mut attack_data,
+            );
+        }
+
+        let opp_knight_bits = opp_bits & self.board.get_piece_bitmask(Piece::Knight);
+        let opp_knight_indices = bits_to_indices(opp_knight_bits);
+        let mut is_knight_check = false;
+
+        for index in opp_knight_indices {
+            let attack_bitmask = KNIGHT_ATTACK_BITMASKS[index as usize];
+            attack_data.opponent_knight_attack_bitmask |= attack_bitmask;
+            if !is_knight_check && friendly_king_bit & attack_bitmask != 0 {
+                is_knight_check = true;
+                // If already in check, then this is a double check
+                attack_data.in_double_check = attack_data.in_check;
+                attack_data.in_check = true;
+                attack_data.check_ray_bitmask |= 1 << index;
+            }
+        }
+
+        let opp_pawn_bits = opp_bits & self.board.get_piece_bitmask(Piece::Pawn);
+        let opp_pawn_indices = bits_to_indices(opp_pawn_bits);
+        let mut is_pawn_check = false;
+
+        for index in opp_pawn_indices {
+            let attack_mb_indices = get_pawn_mailbox_attack_indices(&self.turn.opposite(), index);
+            for attack_mb_index in attack_mb_indices {
+                let attack_index = MAILBOX[attack_mb_index as usize];
+                if let Some(attack_index) = attack_index {
+                    let attack_bitmask = 1 << attack_index;
+                    attack_data.opponent_pawn_attack_bitmask |= attack_bitmask;
+                    if !is_pawn_check && friendly_king_bit & attack_bitmask != 0 {
+                        is_pawn_check = true;
+                        // If already in check, then this is a double check
+                        attack_data.in_double_check = attack_data.in_check;
+                        attack_data.in_check = true;
+                        attack_data.check_ray_bitmask |= 1 << index;
+                    }
+                }
+            }
+        }
+
+        let opp_king_bits = opp_bits & self.board.get_piece_bitmask(Piece::King);
+        let opp_king_index = bits_to_indices(opp_king_bits)[0];
+        let opp_king_attack_bitmask = KING_ATTACK_BITMASKS[opp_king_index as usize];
+
+        attack_data.opponent_attack_bitmask = attack_data.opponent_sliding_attack_bitmask
+            | attack_data.opponent_knight_attack_bitmask
+            | attack_data.opponent_pawn_attack_bitmask
+            | opp_king_attack_bitmask;
+
+        attack_data
+    }
+
+    fn check_pins_and_checks(
+        &self,
+        mb_offsets: [i32; 4],
+        is_diagonal: bool,
+        friendly_king_index: u32,
+        attack_data: &mut AttackData,
+    ) {
+        let friendly_king_mb_index = BOARD_INDEX_TO_MAILBOX_INDEX[friendly_king_index as usize];
+        for mb_offset in mb_offsets {
+            let mut is_friendly_piece_along_ray = false;
+            let mut ray_mask: u64 = 1;
+            let mut target_index = ((friendly_king_mb_index as i32) + mb_offset) as u32;
+            loop {
+                ray_mask |= 1 << target_index;
+                let (color, piece) = self.board.get_square(target_index);
+                if piece != Piece::Empty {
+                    if color == self.turn {
+                        // First friendly piece found in this direction so it might be pinned
+                        if !is_friendly_piece_along_ray {
+                            is_friendly_piece_along_ray = true;
+                        // Second friendly piece found so no pins possible
+                        } else {
+                            break;
+                        }
+                    } else if piece == Piece::Queen
+                        || is_diagonal && piece == Piece::Bishop
+                        || !is_diagonal && piece == Piece::Rook
+                    {
+                        // Friendly piece blocks check, so this is a pin
+                        if is_friendly_piece_along_ray {
+                            attack_data.pin_exists_in_position = true;
+                            attack_data.pin_ray_bitmask |= ray_mask;
+                        // No friendly piece to block, so this is a check
+                        } else {
+                            attack_data.check_ray_bitmask |= ray_mask;
+                            // If already in check, then this is a double check
+                            attack_data.in_double_check = attack_data.in_check;
+                            attack_data.in_check = true;
+                        }
+                        break;
+                    // Opponents piece cannot attack king, so there's no pin or check
+                    } else {
+                        break;
+                    }
+                }
+                target_index = ((target_index as i32) + mb_offset) as u32
+            }
+            // Stop searching when in double check since only the king can move anyway
+            if attack_data.in_double_check {
+                break;
+            }
+        }
+    }
+
+    fn get_sliding_attack_data(
+        &self,
+        indices: &Vec<u32>,
+        mailbox_offsets: [i32; 4],
+        friendly_king_index: u32,
+    ) -> u64 {
+        let mut opp_target_map: u64 = 0;
+        for index in indices {
+            let mb_index = BOARD_INDEX_TO_MAILBOX_INDEX[*index as usize];
+            for mb_offset in mailbox_offsets {
+                let mut target_mb_index = ((mb_index as i32) + mb_offset) as u32;
+                loop {
+                    let target_index = MAILBOX[target_mb_index as usize];
+                    if let Some(target_index) = target_index {
+                        opp_target_map |= 1 << target_index;
+                        if target_index != friendly_king_index
+                            && !self.board.is_index_empty(target_index)
+                        {
+                            break;
+                        }
+                    } else {
+                        break;
+                    }
+                    target_mb_index = ((target_mb_index as i32) + mb_offset) as u32;
+                }
+            }
+        }
+        opp_target_map
+    }
+
+    #[allow(dead_code)]
+    pub fn generate_legal_moves_at_depth(&self, depth: u32) -> Vec<GameState> {
         let mut game_states = self.generate_legal_moves();
 
         let mut curr_depth = 1;
@@ -187,7 +379,7 @@ impl GameState {
     fn gen_moves_pawn(
         &self,
         color: Color,
-        index: usize,
+        index: u32,
         attack_only: bool,
         mut moves: Vec<Move>,
     ) -> Vec<Move> {
@@ -215,7 +407,7 @@ impl GameState {
         let mailbox_attack_indices = get_pawn_mailbox_attack_indices(&color, index);
         let en_passant_index = self.en_passant_index.unwrap_or(100);
         for mailbox_attack_index in mailbox_attack_indices {
-            if let Some(attack_index) = MAILBOX[mailbox_attack_index] {
+            if let Some(attack_index) = MAILBOX[mailbox_attack_index as usize] {
                 if attack_index == en_passant_index {
                     moves.push(Move::en_passant(index, attack_index));
                 } else {
@@ -248,12 +440,12 @@ impl GameState {
         &self,
         color: Color,
         piece: &Piece,
-        index: usize,
+        index: u32,
         slide: bool,
         attack_only: bool,
         mut moves: Vec<Move>,
     ) -> Vec<Move> {
-        let mailbox_index = BOARD_INDEX_TO_MAILBOX_INDEX[index];
+        let mailbox_index = BOARD_INDEX_TO_MAILBOX_INDEX[index as usize];
         let mailbox_offsets = get_piece_mailbox_direction_offsets(piece);
         for mailbox_offset in mailbox_offsets {
             if slide {
@@ -282,9 +474,9 @@ impl GameState {
     fn gen_moves_hop_direction(
         &self,
         color: Color,
-        index: usize,
-        mailbox_index: usize,
-        mailbox_offset: usize,
+        index: u32,
+        mailbox_index: u32,
+        mailbox_offset: u32,
         attack_only: bool,
         mut moves: Vec<Move>,
     ) -> Vec<Move> {
@@ -308,9 +500,9 @@ impl GameState {
     fn gen_moves_slide_direction(
         &self,
         color: Color,
-        index: usize,
-        mailbox_index: usize,
-        mailbox_offset: usize,
+        index: u32,
+        mailbox_index: u32,
+        mailbox_offset: u32,
         attack_only: bool,
         mut moves: Vec<Move>,
     ) -> Vec<Move> {
@@ -364,10 +556,10 @@ impl GameState {
     fn gen_move_from_mailbox(
         &self,
         color: Color,
-        target_square_mailbox_index: usize,
-        start_index: usize,
+        target_square_mailbox_index: u32,
+        start_index: u32,
     ) -> Option<Move> {
-        let target_square_index = MAILBOX[target_square_mailbox_index];
+        let target_square_index = MAILBOX[target_square_mailbox_index as usize];
         match target_square_index {
             // Off the board
             None => None,
@@ -377,7 +569,7 @@ impl GameState {
         }
     }
 
-    fn gen_move_to_index(&self, color: Color, from: usize, to: usize) -> Option<Move> {
+    fn gen_move_to_index(&self, color: Color, from: u32, to: u32) -> Option<Move> {
         if self.board.is_index_empty(to) {
             Some(Move::new(from, to))
         } else if !self.board.is_index_of_color(to, color) {
@@ -388,7 +580,7 @@ impl GameState {
     }
 }
 
-fn get_pawn_move_index(turn: &Color, index: usize) -> usize {
+fn get_pawn_move_index(turn: &Color, index: u32) -> u32 {
     if turn == &Color::White {
         index - 8
     } else {
@@ -396,8 +588,8 @@ fn get_pawn_move_index(turn: &Color, index: usize) -> usize {
     }
 }
 
-fn get_pawn_mailbox_attack_indices(turn: &Color, index: usize) -> [usize; 2] {
-    let mailbox_index = BOARD_INDEX_TO_MAILBOX_INDEX[index];
+fn get_pawn_mailbox_attack_indices(turn: &Color, index: u32) -> [u32; 2] {
+    let mailbox_index = BOARD_INDEX_TO_MAILBOX_INDEX[index as usize];
     if turn == &Color::White {
         [mailbox_index - 9, mailbox_index - 11]
     } else {
@@ -405,7 +597,7 @@ fn get_pawn_mailbox_attack_indices(turn: &Color, index: usize) -> [usize; 2] {
     }
 }
 
-fn get_piece_mailbox_direction_offsets(piece: &Piece) -> &[usize] {
+fn get_piece_mailbox_direction_offsets(piece: &Piece) -> &[u32] {
     match piece {
         Piece::Bishop => &DIAGONAL_MAILBOX_DIRECTION_OFFSETS,
         Piece::Rook => &CARDINAL_MAILBOX_DIRECTION_OFFSETS,
@@ -414,6 +606,25 @@ fn get_piece_mailbox_direction_offsets(piece: &Piece) -> &[usize] {
         // Pawn moves are calculated differently
         _ => &[],
     }
+}
+
+fn bits_to_indices(mut bits: u64) -> Vec<u32> {
+    let mut indices: Vec<u32> = vec![];
+    while bits != 0 {
+        let index = bits.trailing_zeros();
+        indices.push(index);
+        bits ^= 1 << index;
+    }
+    indices
+}
+
+#[allow(dead_code)]
+fn indices_to_bits(indices: Vec<u32>) -> u64 {
+    let mut bits = 0;
+    for index in indices {
+        bits |= 1 << index;
+    }
+    bits
 }
 
 #[cfg(test)]
@@ -426,6 +637,76 @@ mod state_tests {
             get_game_state_from_fen("rnbqkbnr/ppp1pppp/3p4/1B6/8/4P3/PPPP1PPP/RNBQK1NR b KQkq -");
         assert_eq!(game_state.is_in_check(), (true, 4));
         assert!(!game_state.is_opponent_in_check());
+    }
+}
+
+#[cfg(test)]
+mod attack_data_tests {
+    use super::fen_util::*;
+    use super::*;
+
+    #[test]
+    fn king_attack_data() {
+        // White's move
+        let game_state = get_game_state_from_fen("7k/8/8/8/8/8/6K1/8 w - - 0 1");
+        let attack_data = game_state.generate_attack_data();
+        assert_eq!(
+            AttackData {
+                pin_ray_bitmask: 0,
+                opponent_sliding_attack_bitmask: 0,
+                opponent_knight_attack_bitmask: 0,
+                opponent_pawn_attack_bitmask: 0,
+                opponent_attack_bitmask: indices_to_bits(vec![6, 14, 15]),
+                check_ray_bitmask: 0,
+                in_check: false,
+                in_double_check: false,
+                pin_exists_in_position: false
+            },
+            attack_data
+        );
+
+        // Black's move
+        let game_state = get_game_state_from_fen("7k/8/8/8/8/8/6K1/8 b - - 0 1");
+        let attack_data = game_state.generate_attack_data();
+        assert_eq!(
+            AttackData {
+                pin_ray_bitmask: 0,
+                opponent_sliding_attack_bitmask: 0,
+                opponent_knight_attack_bitmask: 0,
+                opponent_pawn_attack_bitmask: 0,
+                opponent_attack_bitmask: indices_to_bits(vec![45, 46, 47, 53, 55, 61, 62, 63]),
+                check_ray_bitmask: 0,
+                in_check: false,
+                in_double_check: false,
+                pin_exists_in_position: false
+            },
+            attack_data
+        );
+    }
+
+    #[test]
+    fn pawn_attack_data() {
+        env_logger::init();
+        let game_state = get_game_state_from_fen("7k/8/2p5/4pp2/P3P3/2P5/2P3p1/K7 w - - 0 1");
+        let attack_data = game_state.generate_attack_data();
+        let king_attack_vec = vec![6, 14, 15];
+        let pawn_attack_vec = vec![25, 27, 35, 36, 37, 38, 61, 63];
+        let mut all_attack_vec = king_attack_vec;
+        all_attack_vec.extend(&pawn_attack_vec);
+        assert_eq!(
+            attack_data,
+            AttackData {
+                pin_ray_bitmask: 0,
+                opponent_sliding_attack_bitmask: 0,
+                opponent_knight_attack_bitmask: 0,
+                opponent_pawn_attack_bitmask: indices_to_bits(pawn_attack_vec),
+                opponent_attack_bitmask: indices_to_bits(all_attack_vec),
+                check_ray_bitmask: 0,
+                in_check: false,
+                in_double_check: false,
+                pin_exists_in_position: false
+            }
+        );
     }
 }
 
@@ -590,7 +871,7 @@ mod perft_tests {
 
     #[allow(dead_code)]
     fn print_move_map(game_states: &[GameState]) {
-        let mut move_map: HashMap<String, usize> = HashMap::new();
+        let mut move_map: HashMap<String, u32> = HashMap::new();
         game_states.iter().for_each(|game_state| {
             let first_move = game_state.move_list.get(0);
             if let Some(first_move) = first_move {

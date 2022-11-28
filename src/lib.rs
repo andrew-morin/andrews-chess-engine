@@ -45,7 +45,7 @@ pub fn convert_game_state_to_squares(game_state: JsValue) -> JsValue {
 }
 
 #[wasm_bindgen]
-pub fn get_square_at_index(game_state: JsValue, index: usize) -> JsValue {
+pub fn get_square_at_index(game_state: JsValue, index: u32) -> JsValue {
     let game_state: GameState = game_state.into_serde().unwrap();
     let square = game_state.board.get_square(index);
     JsValue::from_serde(&square).unwrap()
@@ -74,7 +74,7 @@ pub fn perform_move(game_state: JsValue, next_move: JsValue) -> JsValue {
 }
 
 #[wasm_bindgen]
-pub struct InCheckReturn(pub bool, pub usize);
+pub struct InCheckReturn(pub bool, pub u32);
 
 #[wasm_bindgen]
 pub fn in_check(game_state: JsValue) -> InCheckReturn {

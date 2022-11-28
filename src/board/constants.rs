@@ -1,4 +1,4 @@
-pub const MAILBOX: [Option<usize>; 120] = [
+pub const MAILBOX: [Option<u32>; 120] = [
     None,
     None,
     None,
@@ -121,16 +121,19 @@ pub const MAILBOX: [Option<usize>; 120] = [
     None,
 ];
 
-pub const BOARD_INDEX_TO_MAILBOX_INDEX: [usize; 64] = [
+pub const BOARD_INDEX_TO_MAILBOX_INDEX: [u32; 64] = [
     21, 22, 23, 24, 25, 26, 27, 28, 31, 32, 33, 34, 35, 36, 37, 38, 41, 42, 43, 44, 45, 46, 47, 48,
     51, 52, 53, 54, 55, 56, 57, 58, 61, 62, 63, 64, 65, 66, 67, 68, 71, 72, 73, 74, 75, 76, 77, 78,
     81, 82, 83, 84, 85, 86, 87, 88, 91, 92, 93, 94, 95, 96, 97, 98,
 ];
 
-pub const CARDINAL_MAILBOX_DIRECTION_OFFSETS: [usize; 2] = [1, 10];
-pub const DIAGONAL_MAILBOX_DIRECTION_OFFSETS: [usize; 2] = [9, 11];
-pub const ALL_MAILBOX_DIRECTION_OFFSETS: [usize; 4] = [1, 9, 10, 11];
-pub const KNIGHT_MAILBOX_DIRECTION_OFFSETS: [usize; 4] = [8, 12, 19, 21];
+pub const CARDINAL_MAILBOX_DIRECTION_OFFSETS_ALL: [i32; 4] = [-10, -1, 1, 10];
+pub const DIAGONAL_MAILBOX_DIRECTION_OFFSETS_ALL: [i32; 4] = [-11, -9, 9, 11];
+
+pub const CARDINAL_MAILBOX_DIRECTION_OFFSETS: [u32; 2] = [1, 10];
+pub const DIAGONAL_MAILBOX_DIRECTION_OFFSETS: [u32; 2] = [9, 11];
+pub const ALL_MAILBOX_DIRECTION_OFFSETS: [u32; 4] = [1, 9, 10, 11];
+pub const KNIGHT_MAILBOX_DIRECTION_OFFSETS: [u32; 4] = [8, 12, 19, 21];
 
 pub static KING_ATTACK_BITMASKS: [u64; 64] =
     build_hop_attack_bitmasks(ALL_MAILBOX_DIRECTION_OFFSETS);
@@ -141,7 +144,7 @@ pub static CARDINAL_ATTACK_BITMASKS: [[u64; 4]; 64] =
 pub static DIAGONAL_ATTACK_BITMASKS: [[u64; 4]; 64] =
     build_slide_attack_bitmasks(DIAGONAL_MAILBOX_DIRECTION_OFFSETS);
 
-const fn build_hop_attack_bitmasks(offset_directions: [usize; 4]) -> [u64; 64] {
+const fn build_hop_attack_bitmasks(offset_directions: [u32; 4]) -> [u64; 64] {
     let mut bitmasks: [u64; 64] = [0; 64];
     let mut index = 0;
     while index < 64 {
@@ -150,11 +153,11 @@ const fn build_hop_attack_bitmasks(offset_directions: [usize; 4]) -> [u64; 64] {
         let mut offset_index = 0;
         while offset_index < 4 {
             let offset = offset_directions[offset_index];
-            let attack_index = MAILBOX[mailbox_index + offset];
+            let attack_index = MAILBOX[(mailbox_index + offset) as usize];
             if let Some(attack_index) = attack_index {
                 bitmask |= 1 << attack_index;
             }
-            let attack_index = MAILBOX[mailbox_index - offset];
+            let attack_index = MAILBOX[(mailbox_index - offset) as usize];
             if let Some(attack_index) = attack_index {
                 bitmask |= 1 << attack_index;
             }
@@ -166,7 +169,7 @@ const fn build_hop_attack_bitmasks(offset_directions: [usize; 4]) -> [u64; 64] {
     bitmasks
 }
 
-const fn build_slide_attack_bitmasks(offset_directions: [usize; 2]) -> [[u64; 4]; 64] {
+const fn build_slide_attack_bitmasks(offset_directions: [u32; 2]) -> [[u64; 4]; 64] {
     let mut bitmasks: [[u64; 4]; 64] = [[0; 4]; 64];
     let mut index = 0;
     while index < 64 {
@@ -177,7 +180,7 @@ const fn build_slide_attack_bitmasks(offset_directions: [usize; 2]) -> [[u64; 4]
             let offset = offset_directions[offset_index];
             let mut attack_mailbox_index = mailbox_index - offset;
             loop {
-                let attack_index = MAILBOX[attack_mailbox_index];
+                let attack_index = MAILBOX[attack_mailbox_index as usize];
                 if let Some(attack_index) = attack_index {
                     direction_bitmasks[offset_index] |= 1 << attack_index;
                     attack_mailbox_index -= offset;
@@ -187,7 +190,7 @@ const fn build_slide_attack_bitmasks(offset_directions: [usize; 2]) -> [[u64; 4]
             }
             let mut attack_mailbox_index = mailbox_index + offset;
             loop {
-                let attack_index = MAILBOX[attack_mailbox_index];
+                let attack_index = MAILBOX[attack_mailbox_index as usize];
                 if let Some(attack_index) = attack_index {
                     direction_bitmasks[offset_index + 2] |= 1 << attack_index;
                     attack_mailbox_index += offset;

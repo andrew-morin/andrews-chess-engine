@@ -8,7 +8,7 @@ pub fn get_game_state_from_fen(fen: &str) -> GameState {
         black_kingside: false,
         black_queenside: false,
     };
-    let mut index: usize = 0;
+    let mut index = 0;
     let mut chars = fen.chars();
     let mut found_slash = true;
     loop {
@@ -19,7 +19,7 @@ pub fn get_game_state_from_fen(fen: &str) -> GameState {
         let c = c.unwrap();
         let digit = c.to_digit(10);
         if let Some(digit) = digit {
-            let end_index = index + digit as usize;
+            let end_index = index + digit;
             for i in index..end_index {
                 board.clear_square(i);
             }
@@ -115,7 +115,7 @@ pub fn get_game_state_from_fen(fen: &str) -> GameState {
 }
 
 #[allow(dead_code)]
-pub fn get_square_from_index(index: usize) -> String {
+pub fn get_square_from_index(index: u32) -> String {
     let file = match index % 8 {
         0 => 'a',
         1 => 'b',
@@ -194,7 +194,7 @@ fn board_to_fen_string(board: &Board) -> String {
     board_str
 }
 
-fn get_fen_char_from_square(board: &Board, index: usize) -> char {
+fn get_fen_char_from_square(board: &Board, index: u32) -> char {
     let (color, piece) = board.get_square(index);
     if color == Color::Empty || piece == Piece::Empty {
         return ' ';
