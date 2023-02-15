@@ -29,20 +29,16 @@ impl Default for GameState {
 
 impl GameState {
     pub fn is_opponent_in_check(&self) -> bool {
-        let (is_in_check, _) = self.is_in_check_inner(self.turn.opposite());
-        is_in_check
+        self.is_in_check_inner(self.turn.opposite())
     }
 
-    pub fn is_in_check(&self) -> (bool, usize) {
+    pub fn is_in_check(&self) -> bool {
         self.is_in_check_inner(self.turn)
     }
 
-    fn is_in_check_inner(&self, color: Color) -> (bool, usize) {
+    fn is_in_check_inner(&self, color: Color) -> bool {
         let king_index = self.board.find_king(color);
-        (
-            self.board.is_index_under_attack(king_index as usize),
-            king_index as usize,
-        )
+        self.board.is_index_under_attack(king_index as usize)
     }
 
     pub fn perform_move(&mut self, next_move: Move) {
@@ -108,7 +104,7 @@ impl GameState {
     // This is slow and should be updated later.
     pub fn generate_legal_moves(&self) -> Vec<GameState> {
         let pseudo_legal_moves = self.generate_pseudo_legal_moves();
-        let (current_is_in_check, _) = self.is_in_check();
+        let current_is_in_check = self.is_in_check();
         pseudo_legal_moves
             .iter()
             .filter(|&next_move| !next_move.castle || !current_is_in_check)
@@ -424,7 +420,7 @@ mod state_tests {
     fn in_check_test() {
         let game_state =
             get_game_state_from_fen("rnbqkbnr/ppp1pppp/3p4/1B6/8/4P3/PPPP1PPP/RNBQK1NR b KQkq -");
-        assert_eq!(game_state.is_in_check(), (true, 4));
+        assert_eq!(game_state.is_in_check(), true);
         assert!(!game_state.is_opponent_in_check());
     }
 }
@@ -608,8 +604,20 @@ mod perft_tests {
 mod benchmark_tests {
     extern crate test;
 
-    use super::fen_util::*;
+    use super::{fen_util::*, GameState};
     use test::Bencher;
+
+    #[bench]
+    fn start_pos_pseudo_bench(b: &mut Bencher) {
+        let game_state = GameState::default();
+        b.iter(|| game_state.generate_pseudo_legal_moves());
+    }
+
+    #[bench]
+    fn start_pos_legal_bench(b: &mut Bencher) {
+        let game_state = GameState::default();
+        b.iter(|| game_state.generate_legal_moves());
+    }
 
     #[bench]
     fn perft_pos_2_pseudo_bench(b: &mut Bencher) {
@@ -625,5 +633,11 @@ mod benchmark_tests {
             "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq -",
         );
         b.iter(|| game_state.generate_legal_moves());
+    }
+
+    #[bench]
+    fn start_pos_in_check(b: &mut Bencher) {
+        let game_state = GameState::default();
+        b.iter(|| game_state.is_in_check());
     }
 }

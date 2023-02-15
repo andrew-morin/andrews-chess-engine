@@ -19,6 +19,7 @@ const EVALED_PIECES: [Piece; 5] = [
     Piece::Rook,
     Piece::Queen,
 ];
+const MAX_PLY_DEPTH: u32 = 4;
 
 impl Piece {
     fn get_value(self: &Piece) -> i32 {
@@ -34,22 +35,46 @@ impl Piece {
 }
 
 pub fn search(game_state: &GameState) -> Option<Move> {
+    inner_search(game_state, MAX_PLY_DEPTH).map(|(state, _eval)| {
+        evaluate(&state);
+        state.move_list[game_state.move_list.len()]
+    })
+}
+
+fn inner_search(game_state: &GameState, depth: u32) -> Option<(GameState, i32)> {
+    if depth == 0 {
+        return None;
+    }
     let states = game_state.generate_legal_moves();
     if states.is_empty() {
         return None;
     }
-    let mut best_states = vec![&states[0]];
-    let mut best_eval = evaluate(best_states[0]);
+    let mut best_states = vec![];
+    let mut best_side_eval = i32::MIN;
     let sign: i32 = match game_state.turn {
         Color::Black => -1,
         _ => 1,
     };
-    for state in &states[1..] {
-        let eval = sign * evaluate(state);
-        match eval.cmp(&best_eval) {
+    for mut state in states {
+        let side_eval;
+        if depth > 1 {
+            let new_state = inner_search(&state, depth - 1);
+            if let Some((new_state, new_eval)) = new_state {
+                state = new_state;
+                side_eval = sign * new_eval;
+            // If there is no best move and the depth is not 1, then it must be checkmate or stalemate
+            } else if state.is_in_check() {
+                return Some((state, -sign * i32::MAX));
+            } else {
+                return Some((state, 0));
+            }
+        } else {
+            side_eval = sign * evaluate(&state);
+        }
+        match side_eval.cmp(&best_side_eval) {
             Ordering::Greater => {
                 best_states = vec![state];
-                best_eval = eval;
+                best_side_eval = side_eval;
             }
             Ordering::Equal => {
                 best_states.push(state);
@@ -58,10 +83,21 @@ pub fn search(game_state: &GameState) -> Option<Move> {
         }
     }
     let best_state = best_states.choose(&mut rand::thread_rng());
-    best_state.map(|state| state.move_list[state.move_list.len() - 1])
+    best_state.map(|best_state| (best_state.clone(), sign * best_side_eval))
 }
 
 fn evaluate(game_state: &GameState) -> i32 {
+    if game_state.generate_pseudo_legal_moves().is_empty() {
+        if game_state.is_in_check() {
+            return match game_state.turn {
+                Color::White => i32::MIN,
+                Color::Black => i32::MAX,
+                _ => panic!("Not possible"),
+            };
+        } else {
+            return 0;
+        }
+    }
     let board = &game_state.board;
 
     let mut white_eval = 0;
@@ -79,7 +115,7 @@ fn evaluate(game_state: &GameState) -> i32 {
 
 fn get_piece_eval(board: &Board, color: Color, piece: Piece) -> i32 {
     let bits = board.get_color_bitmask(color) & board.get_piece_bitmask(piece);
-    // We can never have all 32 bits on, so this cast is safe
+    // We can never have more than 16 bits on, so this cast is safe
     piece.get_value() * bits.count_ones() as i32
 }
 
@@ -105,5 +141,37 @@ mod search_tests {
         assert_eq!(35, m.from);
         assert_eq!(28, m.to);
         assert!(m.capture);
+    }
+}
+
+#[cfg(test)]
+mod benchmark_tests {
+    extern crate test;
+
+    use crate::board::GameState;
+
+    use super::inner_search;
+    use test::Bencher;
+
+    #[bench]
+    fn search_depth_2_start_position(b: &mut Bencher) {
+        let game_state = GameState::default();
+        b.iter(|| inner_search(&game_state, 2));
+    }
+
+    // These tests are slow, so ignore them by default
+
+    #[bench]
+    #[ignore]
+    fn search_depth_4_start_position(b: &mut Bencher) {
+        let game_state = GameState::default();
+        b.iter(|| inner_search(&game_state, 4));
+    }
+
+    #[bench]
+    #[ignore]
+    fn search_depth_5_start_position(b: &mut Bencher) {
+        let game_state = GameState::default();
+        b.iter(|| inner_search(&game_state, 5));
     }
 }

@@ -79,8 +79,9 @@ pub struct InCheckReturn(pub bool, pub usize);
 #[wasm_bindgen]
 pub fn in_check(game_state: JsValue) -> InCheckReturn {
     let game_state: GameState = game_state.into_serde().unwrap();
-    let (b, i) = game_state.is_in_check();
-    InCheckReturn(b, i)
+    let in_check = game_state.is_in_check();
+    let king_index = game_state.board.find_king(game_state.turn);
+    InCheckReturn(in_check, king_index as usize)
 }
 
 #[wasm_bindgen]

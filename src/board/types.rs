@@ -21,12 +21,6 @@ impl Color {
     }
 }
 
-impl Default for Color {
-    fn default() -> Self {
-        Color::Empty
-    }
-}
-
 #[repr(u8)]
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
 pub enum Piece {
@@ -37,12 +31,6 @@ pub enum Piece {
     Rook,
     Queen,
     King,
-}
-
-impl Default for Piece {
-    fn default() -> Self {
-        Piece::Empty
-    }
 }
 
 fn to_str<S>(x: &u64, s: S) -> Result<S::Ok, S::Error>
