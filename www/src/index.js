@@ -172,20 +172,20 @@ function performComputerMove() {
 }
 
 function checkForWinLoseDraw() {
-  if (nextLegalGameStates.length === 0) {
+  if (gameState.halfmove_counter >= 100) {
+    gameOver = true;
+    alert("No capture or pawn move in 50 moves. It's a draw! :/");
+  } else if (nextLegalGameStates.length === 0) {
     gameOver = true;
     const inCheckReturn = wasm.in_check(gameState);
     const inCheck = inCheckReturn[0];
     if (inCheck) {
       if (gameState.turn === 'White') {
-        // eslint-disable-next-line no-alert
         alert('You lose :(');
       } else {
-        // eslint-disable-next-line no-alert
         alert('You win! :D');
       }
     } else {
-      // eslint-disable-next-line no-alert
       alert("It's a draw! :/");
     }
   }

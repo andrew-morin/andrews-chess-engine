@@ -13,6 +13,7 @@ pub struct GameState {
     pub castle: CastleAvailability,
     pub en_passant_index: Option<usize>,
     pub move_list: Vec<Move>,
+    pub halfmove_counter: u8,
 }
 
 impl Default for GameState {
@@ -23,6 +24,7 @@ impl Default for GameState {
             castle: Default::default(),
             en_passant_index: None,
             move_list: vec![],
+            halfmove_counter: 0,
         }
     }
 }
@@ -47,6 +49,7 @@ impl GameState {
 
         self.board.move_from_to(from, to);
         if next_move.castle {
+            // Move the rook
             if to == 2 {
                 self.board.move_from_to(0, 3);
             } else if to == 6 {
@@ -69,6 +72,13 @@ impl GameState {
             self.en_passant_index = Some((from + to) / 2);
         } else {
             self.en_passant_index = None;
+        }
+
+        // If the move is a capture or a pawn move, reset the halfmove counter. Otherwise, increment it
+        if next_move.capture || self.board.get_square(from).1 == Piece::Pawn {
+            self.halfmove_counter = 0;
+        } else {
+            self.halfmove_counter += 1;
         }
 
         if let Some(promotion_piece) = next_move.promotion_piece {
@@ -420,8 +430,15 @@ mod state_tests {
     fn in_check_test() {
         let game_state =
             get_game_state_from_fen("rnbqkbnr/ppp1pppp/3p4/1B6/8/4P3/PPPP1PPP/RNBQK1NR b KQkq -");
-        assert_eq!(game_state.is_in_check(), true);
+        assert!(game_state.is_in_check());
         assert!(!game_state.is_opponent_in_check());
+    }
+
+    #[test]
+    fn pawn_move_reset_halfmove_counter() {
+        let game_state =
+            get_game_state_from_fen("rnbqkbnr/ppp1pppp/3p4/1B6/8/4P3/PPPP1PPP/RNBQK1NR b KQkq - 5");
+        assert_eq!(game_state.halfmove_counter, 5);
     }
 }
 

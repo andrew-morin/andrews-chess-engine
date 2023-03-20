@@ -58,7 +58,7 @@ pub fn get_game_state_from_fen(fen: &str) -> GameState {
                 'r' => Piece::Rook,
                 'q' => Piece::Queen,
                 'k' => Piece::King,
-                _ => panic!("Invalid FEN: '{}', invalid character '{}' ", fen, c),
+                _ => panic!("Invalid FEN: '{}', invalid character '{}'", fen, c),
             };
             board.update_square(index, color, piece);
             index += 1
@@ -82,7 +82,7 @@ pub fn get_game_state_from_fen(fen: &str) -> GameState {
     }
     let c = c.unwrap();
     if c != ' ' {
-        panic!("Invalid FEN: '{}', invalid character '{}' ", fen, c);
+        panic!("Invalid FEN: '{}', invalid character '{}'", fen, c);
     }
 
     let mut c = chars.next();
@@ -97,19 +97,113 @@ pub fn get_game_state_from_fen(fen: &str) -> GameState {
                 'q' => castle.black_queenside = true,
                 ' ' => break,
                 _ => panic!(
-                    "Invalid FEN: '{}', invalid character '{}' ",
+                    "Invalid FEN: '{}', invalid character '{}'",
                     fen, castle_char
                 ),
             };
 
             c = chars.next();
         }
+    } else {
+        c = chars.next();
+        if c.is_none() {
+            return GameState {
+                board,
+                turn,
+                castle,
+                ..Default::default()
+            };
+        }
+        let c = c.unwrap();
+        if c != ' ' {
+            panic!("Invalid FEN: '{}', invalid character '{}'", fen, c);
+        }
+    }
+
+    let c = chars.next();
+    if c.is_none() {
+        return GameState {
+            board,
+            turn,
+            castle,
+            ..Default::default()
+        };
+    }
+
+    let c = c.unwrap();
+    let mut en_passant_index = None;
+    if c != '-' {
+        let file = c;
+        if !('a'..='h').contains(&file) {
+            panic!(
+                "Invalid FEN: '{}', invalid character in en passant target square '{}'",
+                fen, c
+            )
+        };
+        let rank = chars.next();
+        if rank.is_none() {
+            panic!(
+                "Invalid FEN: '{}', en passant target square not complete",
+                fen
+            );
+        }
+        let rank = rank.unwrap();
+        if !('1'..='8').contains(&rank) {
+            panic!(
+                "Invalid FEN: '{}', invalid character in en passant target square '{}'",
+                fen, c
+            )
+        };
+
+        en_passant_index = Some(get_index_from_square(file, rank));
+    }
+
+    let c = chars.next();
+    if c.is_none() {
+        return GameState {
+            board,
+            turn,
+            castle,
+            ..Default::default()
+        };
+    }
+
+    let c = c.unwrap();
+    if c != ' ' {
+        panic!("Invalid FEN: '{}', invalid character '{}'", fen, c);
+    }
+
+    let mut int_str = chars.next().unwrap().to_string();
+    for c in chars {
+        if c == ' ' {
+            break;
+        } else if !c.is_ascii_digit() {
+            panic!(
+                "Invalid FEN: '{}', invalid character in halfmove counter '{}'",
+                fen, c
+            );
+        }
+        int_str.push(c);
+    }
+
+    dbg!("{}", &int_str);
+
+    let halfmove_counter = int_str.parse::<u8>();
+    if halfmove_counter.is_err() {
+        panic!("Invalid FEN: '{}', halfmove counter is invalid.", fen);
+    }
+
+    let halfmove_counter = halfmove_counter.unwrap();
+    if halfmove_counter > 100 {
+        panic!("Invalid FEN: '{}', halfmove counter is too large.", fen);
     }
 
     GameState {
         board,
         turn,
         castle,
+        en_passant_index,
+        halfmove_counter,
         ..Default::default()
     }
 }
@@ -131,6 +225,24 @@ pub fn get_square_from_index(index: usize) -> String {
     file.to_string() + &rank.to_string()
 }
 
+pub fn get_index_from_square(file: char, rank: char) -> usize {
+    let file_index = match file {
+        'a' => 0,
+        'b' => 1,
+        'c' => 2,
+        'd' => 3,
+        'e' => 4,
+        'f' => 5,
+        'g' => 6,
+        'h' => 7,
+        _ => unreachable!(),
+    };
+    if ('1'..='8').contains(&rank) {
+        return file_index + 8 * (8 - rank.to_digit(10).unwrap()) as usize;
+    }
+    unreachable!()
+}
+
 #[allow(dead_code)]
 fn game_state_to_fen_string(game_state: &GameState) -> String {
     let board = board_to_fen_string(&game_state.board);
@@ -139,7 +251,16 @@ fn game_state_to_fen_string(game_state: &GameState) -> String {
         _ => 'w',
     };
     let castle = castle_availability_to_fen(&game_state.castle);
-    format!("{} {} {}", board, turn, castle)
+    let en_passant_square = if let Some(index) = game_state.en_passant_index {
+        get_square_from_index(index)
+    } else {
+        "-".to_string()
+    };
+    let fullmove_counter = game_state.move_list.len() / 2;
+    format!(
+        "{} {} {} {} {} {}",
+        board, turn, castle, en_passant_square, game_state.halfmove_counter, fullmove_counter
+    )
 }
 
 #[allow(dead_code)]
@@ -229,7 +350,7 @@ mod tests {
     #[test]
     fn board_to_fen() {
         let game_state = get_game_state_from_fen(
-            "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq -",
+            "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq e3 12",
         );
         let fen = board_to_fen_string(&game_state.board);
 
@@ -237,5 +358,39 @@ mod tests {
             fen,
             "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R"
         );
+    }
+
+    #[test]
+    fn game_state_to_fen() {
+        let game_state = get_game_state_from_fen(
+            "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq e3 12",
+        );
+        let fen = game_state_to_fen_string(&game_state);
+
+        assert_eq!(
+            fen,
+            "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq e3 12 0"
+        );
+    }
+
+    #[test]
+    fn en_passant_index() {
+        let game_state = get_game_state_from_fen(
+            "rnbqkb1r/1pp2ppp/p3pn2/3p4/8/P3PN2/1PPPBPPP/RNBQK2R w KQkq d6 0 5",
+        );
+        assert_eq!(game_state.en_passant_index, Some(19));
+
+        let game_state = get_game_state_from_fen(
+            "rnbqkb1r/1pp2ppp/p3pn2/3p4/8/P3PN2/1PPPBPPP/RNBQK2R w KQkq - 0 5",
+        );
+        assert_eq!(game_state.en_passant_index, None);
+    }
+
+    #[test]
+    fn halfmove_counter() {
+        let game_state = get_game_state_from_fen(
+            "rnbqkb1r/1pp2ppp/p3pn2/3p4/8/P3PN2/1PPPBPPP/RNBQK2R w KQkq - 2 5",
+        );
+        assert_eq!(game_state.halfmove_counter, 2);
     }
 }
