@@ -35,7 +35,11 @@ impl Piece {
 }
 
 pub fn search(game_state: &GameState) -> Option<Move> {
-    inner_search(game_state, MAX_PLY_DEPTH).map(|(state, _eval)| {
+    search_at_depth(game_state, MAX_PLY_DEPTH)
+}
+
+pub fn search_at_depth(game_state: &GameState, depth: u32) -> Option<Move> {
+    inner_search(game_state, depth).map(|(state, _eval)| {
         evaluate(&state);
         state.move_list[game_state.move_list.len()]
     })
@@ -43,7 +47,7 @@ pub fn search(game_state: &GameState) -> Option<Move> {
 
 fn inner_search(game_state: &GameState, depth: u32) -> Option<(GameState, i32)> {
     if depth == 0 {
-        return None;
+        panic!("depth must be at least 1");
     }
     let states = game_state.generate_legal_moves();
     if states.is_empty() {
@@ -62,11 +66,9 @@ fn inner_search(game_state: &GameState, depth: u32) -> Option<(GameState, i32)> 
             if let Some((new_state, new_eval)) = new_state {
                 state = new_state;
                 side_eval = sign * new_eval;
-            // If there is no best move and the depth is not 1, then it must be checkmate or stalemate
-            } else if state.is_in_check() {
-                return Some((state, -sign * i32::MAX));
             } else {
-                return Some((state, 0));
+                // If there is no best move and the depth is not 1, then it must be checkmate or stalemate
+                return Some((state, -sign * get_no_move_eval(game_state)));
             }
         } else {
             side_eval = sign * evaluate(&state);
@@ -87,17 +89,8 @@ fn inner_search(game_state: &GameState, depth: u32) -> Option<(GameState, i32)> 
 }
 
 fn evaluate(game_state: &GameState) -> i32 {
-    // This should be generate_legal_moves but is way too slow
-    if game_state.generate_pseudo_legal_moves().is_empty() {
-        if game_state.is_in_check() {
-            return match game_state.turn {
-                Color::White => i32::MIN,
-                Color::Black => i32::MAX,
-                _ => panic!("Not possible"),
-            };
-        } else {
-            return 0;
-        }
+    if game_state.generate_legal_moves().is_empty() {
+        return get_no_move_eval(game_state);
     }
     let board = &game_state.board;
 
@@ -114,6 +107,19 @@ fn evaluate(game_state: &GameState) -> i32 {
     white_eval - black_eval
 }
 
+// Assumes there are no legal moves. Make sure to check that first!
+fn get_no_move_eval(game_state: &GameState) -> i32 {
+    if game_state.is_in_check() {
+        match game_state.turn {
+            Color::White => -i32::MAX,
+            Color::Black => i32::MAX,
+            _ => unreachable!(),
+        }
+    } else {
+        0
+    }
+}
+
 fn get_piece_eval(board: &Board, color: Color, piece: Piece) -> i32 {
     let bits = board.get_color_bitmask(color) & board.get_piece_bitmask(piece);
     // We can never have more than 16 bits on, so this cast is safe
@@ -128,7 +134,7 @@ mod search_tests {
 
     #[test]
     fn search_start_pos() {
-        let m = search(&GameState::default());
+        let m = search_at_depth(&GameState::default(), 2);
         assert!(m.is_some());
     }
 
@@ -136,12 +142,11 @@ mod search_tests {
     fn search_capture() {
         let state =
             get_game_state_from_fen("rnbqkbnr/pppp1ppp/8/4p3/3P4/8/PPP1PPPP/RNBQKBNR w KQkq - 0 1");
-        let opt_m = search(&state);
+        let opt_m = search_at_depth(&state, 2);
         assert!(opt_m.is_some());
         let m = opt_m.unwrap();
-        assert_eq!(35, m.from);
-        assert_eq!(28, m.to);
-        assert!(m.capture);
+        let expected = Move::capture(35, 28);
+        assert_eq!(expected, m);
     }
 }
 
@@ -151,13 +156,13 @@ mod benchmark_tests {
 
     use crate::board::GameState;
 
-    use super::inner_search;
+    use super::search_at_depth;
     use test::Bencher;
 
     #[bench]
     fn search_depth_2_start_position(b: &mut Bencher) {
         let game_state = GameState::default();
-        b.iter(|| inner_search(&game_state, 2));
+        b.iter(|| search_at_depth(&game_state, 2));
     }
 
     // These tests are slow, so ignore them by default
@@ -166,13 +171,13 @@ mod benchmark_tests {
     #[ignore]
     fn search_depth_4_start_position(b: &mut Bencher) {
         let game_state = GameState::default();
-        b.iter(|| inner_search(&game_state, 4));
+        b.iter(|| search_at_depth(&game_state, 4));
     }
 
     #[bench]
     #[ignore]
     fn search_depth_5_start_position(b: &mut Bencher) {
         let game_state = GameState::default();
-        b.iter(|| inner_search(&game_state, 5));
+        b.iter(|| search_at_depth(&game_state, 5));
     }
 }
