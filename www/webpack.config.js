@@ -7,13 +7,12 @@ module.exports = {
     path: path.resolve(__dirname, 'dist'),
     filename: 'bootstrap.js',
   },
-  mode: 'development',
+  mode: 'production',
   plugins: [
     new CopyWebpackPlugin({
       patterns: [
         './src/index.html',
         './src/style.css',
-        { from: 'src/piece_images', to: 'assets' },
       ],
     }),
   ],
