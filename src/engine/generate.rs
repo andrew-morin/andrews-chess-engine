@@ -87,6 +87,7 @@ fn inner_search(game_state: &GameState, depth: u32) -> Option<(GameState, i32)> 
 }
 
 fn evaluate(game_state: &GameState) -> i32 {
+    // This should be generate_legal_moves but is way too slow
     if game_state.generate_pseudo_legal_moves().is_empty() {
         if game_state.is_in_check() {
             return match game_state.turn {
