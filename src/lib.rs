@@ -11,6 +11,7 @@ mod engine;
 use board::types::*;
 use board::GameState;
 use engine::generate::search;
+use gloo_utils::format::JsValueSerdeExt;
 use wasm_bindgen::prelude::*;
 
 extern crate web_sys;
