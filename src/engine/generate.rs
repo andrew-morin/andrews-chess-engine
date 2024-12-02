@@ -39,32 +39,29 @@ pub fn search(game_state: &GameState) -> Option<Move> {
 }
 
 pub fn search_at_depth(game_state: &GameState, depth: u32) -> Option<Move> {
-    inner_search(game_state, depth).map(|(state, _eval)| {
-        evaluate(&state);
-        state.move_list[game_state.move_list.len()]
-    })
+    inner_search(game_state, depth).map(|(m, _eval)| m)
 }
 
-fn inner_search(game_state: &GameState, depth: u32) -> Option<(GameState, i32)> {
+fn inner_search(game_state: &GameState, depth: u32) -> Option<(Move, i32)> {
     if depth == 0 {
         panic!("depth must be at least 1");
     }
-    let states = game_state.generate_legal_states();
-    if states.is_empty() {
+    let moves = game_state.generate_pseudo_legal_moves(true);
+    if moves.is_empty() {
         return None;
     }
-    let mut best_states = vec![];
+    let mut best_moves = vec![];
     let mut best_side_eval = i32::MIN;
     let sign: i32 = match game_state.turn {
         Color::Black => -1,
         _ => 1,
     };
-    for mut state in states {
+    for m in moves {
+        let state = game_state.clone().perform_move(m);
         let side_eval;
         if depth > 1 {
             let new_state = inner_search(&state, depth - 1);
-            if let Some((new_state, new_eval)) = new_state {
-                state = new_state;
+            if let Some((_, new_eval)) = new_state {
                 side_eval = sign * new_eval;
             } else {
                 // If there is no best move, then it must be checkmate or stalemate
@@ -79,17 +76,17 @@ fn inner_search(game_state: &GameState, depth: u32) -> Option<(GameState, i32)> 
         }
         match side_eval.cmp(&best_side_eval) {
             Ordering::Greater => {
-                best_states = vec![state];
+                best_moves = vec![m];
                 best_side_eval = side_eval;
             }
             Ordering::Equal => {
-                best_states.push(state);
+                best_moves.push(m);
             }
             Ordering::Less => {}
         }
     }
-    let best_state = best_states.choose(&mut rand::thread_rng());
-    best_state.map(|best_state| (best_state.clone(), sign * best_side_eval))
+    let best_move = best_moves.choose(&mut rand::thread_rng());
+    best_move.map(|best_move| (*best_move, sign * best_side_eval))
 }
 
 fn evaluate(game_state: &GameState) -> i32 {

@@ -256,10 +256,10 @@ fn game_state_to_fen_string(game_state: &GameState) -> String {
     } else {
         "-".to_string()
     };
-    let fullmove_counter = game_state.move_list.len() / 2;
+    // let fullmove_counter = game_state.move_list.len() / 2;
     format!(
         "{} {} {} {} {} {}",
-        board, turn, castle, en_passant_square, game_state.halfmove_counter, fullmove_counter
+        board, turn, castle, en_passant_square, game_state.halfmove_counter, 0
     )
 }
 

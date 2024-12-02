@@ -12,6 +12,8 @@ use board::types::*;
 use board::GameState;
 use engine::generate::search;
 use gloo_utils::format::JsValueSerdeExt;
+use serde::Deserialize;
+use serde::Serialize;
 use wasm_bindgen::prelude::*;
 
 extern crate web_sys;
@@ -60,7 +62,7 @@ pub fn get_pseudo_legal_moves(game_state: JsValue) -> JsValue {
 }
 
 #[wasm_bindgen]
-pub fn get_next_legal_game_states(game_state: JsValue) -> JsValue {
+pub fn get_next_legal_moves(game_state: JsValue) -> JsValue {
     let game_state: GameState = game_state.into_serde().unwrap();
     let moves = game_state.generate_legal_states();
     JsValue::from_serde(&moves).unwrap()
@@ -85,12 +87,22 @@ pub fn in_check(game_state: JsValue) -> InCheckReturn {
     InCheckReturn(in_check, king_index)
 }
 
+#[derive(Serialize, Deserialize)]
+pub struct GameStateAndEngineMove {
+    game_state: GameState,
+    next_move: Option<Move>,
+}
+
 #[wasm_bindgen]
-pub fn perform_best_engine_move(game_state: JsValue) -> JsValue {
+pub fn get_best_engine_move(game_state: JsValue) -> JsValue {
     let mut game_state: GameState = game_state.into_serde().unwrap();
     let next_move = search(&game_state);
     if let Some(next_move) = next_move {
         game_state = game_state.perform_move(next_move);
     }
-    JsValue::from_serde(&game_state).unwrap()
+    let game_state_and_engine_move = GameStateAndEngineMove {
+        game_state,
+        next_move,
+    };
+    JsValue::from_serde(&game_state_and_engine_move).unwrap()
 }

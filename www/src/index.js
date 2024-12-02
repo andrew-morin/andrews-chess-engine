@@ -32,7 +32,7 @@ const SQUARE_IMAGE_MAP = {
 };
 
 let gameState = wasm.get_initial_game_state();
-let nextLegalGameStates = wasm.get_next_legal_game_states(gameState);
+let nextLegalGameStates = wasm.get_pseudo_legal_moves(gameState);
 
 wasm
   .convert_game_state_to_squares(gameState)
@@ -125,16 +125,13 @@ function getOnClick(index) {
       selectedPiece != null &&
       validTargetSquares.includes(index)
     ) {
-      const nextGameStates = nextLegalGameStates.filter((gs) => {
-        const { move_list: moveList } = gs;
-        const lastMove = moveList[moveList.length - 1];
-        return lastMove.from === selectedPiece && lastMove.to === index;
+      const nextMoves = nextLegalGameStates.filter((move) => {
+        return move.from === selectedPiece && move.to === index;
       });
-      if (nextGameStates.length > 1) {
-        showPromotionChoice(nextGameStates);
+      if (nextMoves.length > 1) {
+        showPromotionChoice(gameState.turn, nextMoves);
       } else {
-        const { move_list: moveList } = nextGameStates[0];
-        move = moveList[moveList.length - 1];
+        move = nextMoves[0];
       }
     } else if (color === 'EMPTY' || selectedPiece === index) {
       selectedPiece = null;
@@ -154,7 +151,7 @@ function performMove(move) {
   }
   updateBoard(move);
   gameState = wasm.perform_move(gameState, move);
-  nextLegalGameStates = wasm.get_next_legal_game_states(gameState);
+  nextLegalGameStates = wasm.get_pseudo_legal_moves(gameState);
   selectedPiece = null;
   validTargetSquares = null;
   checkForWinLoseDraw();
@@ -165,9 +162,10 @@ function performComputerMove() {
   if (gameOver || gameState.turn === playerColor) {
     return;
   }
-  gameState = wasm.perform_best_engine_move(gameState);
-  nextLegalGameStates = wasm.get_next_legal_game_states(gameState);
-  const move = gameState.move_list.at(-1);
+  const { game_state: newGameState, next_move: move } =
+    wasm.get_best_engine_move(gameState);
+  gameState = newGameState;
+  nextLegalGameStates = wasm.get_pseudo_legal_moves(gameState);
   updateBoard(move);
 }
 
@@ -203,12 +201,10 @@ function getPromOnClick(nextMove) {
   };
 }
 
-function showPromotionChoice(nextGameStates) {
+function showPromotionChoice(turn, nextMoves) {
   const promDiv = document.querySelector('#promotionPieces');
-  nextGameStates.forEach((state) => {
-    const { move_list: moveList } = state;
-    const nextMove = moveList[moveList.length - 1];
-    const cell = getSquareCell(gameState.turn, nextMove.promotion_piece);
+  nextMoves.forEach((nextMove) => {
+    const cell = getSquareCell(turn, nextMove.promotion_piece);
     cell.addEventListener('click', getPromOnClick(nextMove));
     promDiv.appendChild(cell);
   });
@@ -263,10 +259,9 @@ function updateCellClasses(
 function updateSelectedPiece(index) {
   selectedPiece = index;
   validTargetSquares = [];
-  nextLegalGameStates.forEach((gs) => {
-    const lastMove = gs.move_list[gs.move_list.length - 1];
-    if (lastMove.from === index) {
-      validTargetSquares.push(lastMove.to);
+  nextLegalGameStates.forEach((move) => {
+    if (move.from === index) {
+      validTargetSquares.push(move.to);
     }
   });
 }

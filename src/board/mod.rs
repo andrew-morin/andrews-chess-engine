@@ -16,7 +16,6 @@ pub struct GameState {
     pub turn: Color,
     pub castle: CastleAvailability,
     pub en_passant_index: Option<usize>,
-    pub move_list: Vec<Move>,
     pub halfmove_counter: u8,
 }
 
@@ -37,7 +36,6 @@ impl Default for GameState {
             turn: Color::White,
             castle: Default::default(),
             en_passant_index: None,
-            move_list: vec![],
             halfmove_counter: 0,
         }
     }
@@ -60,7 +58,6 @@ impl GameState {
     pub fn perform_move(&self, next_move: Move) -> GameState {
         let mut game_state_clone = self.clone();
         let Move { from, to, .. } = next_move;
-        game_state_clone.move_list.push(next_move);
 
         game_state_clone.board.move_from_to(from, to);
         if next_move.castle {
@@ -322,8 +319,8 @@ impl GameState {
         while curr_depth < depth {
             curr_depth += 1;
             game_states = game_states.iter_mut().fold(vec![], |mut next, game_state| {
-                let mut next_move_list = game_state.generate_legal_states_inner(with_info);
-                next.append(&mut next_move_list);
+                let mut next_game_state = game_state.generate_legal_states_inner(with_info);
+                next.append(&mut next_game_state);
                 next
             });
         }
@@ -687,7 +684,6 @@ mod perft_tests {
     // Tests based on https://www.chessprogramming.org/Perft_Results
     use super::fen_util::*;
     use super::*;
-    use std::collections::HashMap;
 
     #[test]
     fn perft_pos_1_depth_1() {
@@ -839,21 +835,6 @@ mod perft_tests {
         );
         let game_states = game_state.generate_legal_moves_at_depth(3);
         assert_eq!(game_states.len(), 89890);
-    }
-
-    #[allow(dead_code)]
-    fn print_move_map(game_states: &[GameState]) {
-        let mut move_map: HashMap<String, usize> = HashMap::new();
-        game_states.iter().for_each(|game_state| {
-            let first_move = game_state.move_list.first();
-            if let Some(first_move) = first_move {
-                let from_square = get_square_from_index(first_move.from);
-                let to_square = get_square_from_index(first_move.to);
-                let key = from_square + &to_square;
-                move_map.entry(key).and_modify(|e| *e += 1).or_insert(1);
-            }
-        });
-        println!("{:?}", move_map);
     }
 }
 
