@@ -67,8 +67,12 @@ fn inner_search(game_state: &GameState, depth: u32) -> Option<(GameState, i32)> 
                 state = new_state;
                 side_eval = sign * new_eval;
             } else {
-                // If there is no best move and the depth is not 1, then it must be checkmate or stalemate
-                return Some((state, -sign * get_no_move_eval(game_state)));
+                // If there is no best move, then it must be checkmate or stalemate
+                side_eval = if game_state.is_in_check() {
+                    -i32::MAX
+                } else {
+                    0
+                };
             }
         } else {
             side_eval = sign * evaluate(&state);
