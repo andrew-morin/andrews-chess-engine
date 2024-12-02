@@ -2,9 +2,13 @@ pub mod constants;
 pub mod fen_util;
 pub mod types;
 
+use std::collections::HashMap;
+
 use constants::*;
 use serde::{Deserialize, Serialize};
 use types::*;
+
+const GLOBAL_WITH_INFO: bool = true;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct GameState {
@@ -14,6 +18,16 @@ pub struct GameState {
     pub en_passant_index: Option<usize>,
     pub move_list: Vec<Move>,
     pub halfmove_counter: u8,
+}
+
+#[derive(Debug, Default)]
+pub struct GameStateInfo {
+    // Map of piece index to mask of squares in line of pin
+    pub pins: HashMap<usize, u64>,
+    pub in_check: bool,
+    pub check_mask: u64,
+    pub attack_mask: u64,
+    pub in_double_check: bool,
 }
 
 impl Default for GameState {
@@ -40,52 +54,57 @@ impl GameState {
 
     fn is_in_check_inner(&self, color: Color) -> bool {
         let king_index = self.board.find_king(color);
-        self.board.is_index_under_attack(king_index as usize)
+        self.board.is_index_under_attack(king_index)
     }
 
-    pub fn perform_move(&mut self, next_move: Move) {
+    pub fn perform_move(&self, next_move: Move) -> GameState {
+        let mut game_state_clone = self.clone();
         let Move { from, to, .. } = next_move;
-        self.move_list.push(next_move);
+        game_state_clone.move_list.push(next_move);
 
-        self.board.move_from_to(from, to);
+        game_state_clone.board.move_from_to(from, to);
         if next_move.castle {
             // Move the rook
             if to == 2 {
-                self.board.move_from_to(0, 3);
+                game_state_clone.board.move_from_to(0, 3);
             } else if to == 6 {
-                self.board.move_from_to(7, 5);
+                game_state_clone.board.move_from_to(7, 5);
             } else if to == 58 {
-                self.board.move_from_to(56, 59);
+                game_state_clone.board.move_from_to(56, 59);
             } else if to == 62 {
-                self.board.move_from_to(63, 61);
+                game_state_clone.board.move_from_to(63, 61);
             }
         }
 
-        self.update_castle_availability(from, to);
+        game_state_clone.update_castle_availability(from, to);
 
         if next_move.en_passant {
             let captured_pawn_index = if from > to { to + 8 } else { to - 8 };
-            self.board.clear_square(captured_pawn_index);
+            game_state_clone.board.clear_square(captured_pawn_index);
         }
 
         if next_move.two_square_pawn_move {
-            self.en_passant_index = Some((from + to) / 2);
+            game_state_clone.en_passant_index = Some((from + to) / 2);
         } else {
-            self.en_passant_index = None;
+            game_state_clone.en_passant_index = None;
         }
 
         // If the move is a capture or a pawn move, reset the halfmove counter. Otherwise, increment it
-        if next_move.capture || self.board.get_square(from).1 == Piece::Pawn {
-            self.halfmove_counter = 0;
+        if next_move.capture || game_state_clone.board.get_square(from).1 == Piece::Pawn {
+            game_state_clone.halfmove_counter = 0;
         } else {
-            self.halfmove_counter += 1;
+            game_state_clone.halfmove_counter += 1;
         }
 
         if let Some(promotion_piece) = next_move.promotion_piece {
-            self.board.update_square(to, self.turn, promotion_piece);
+            game_state_clone
+                .board
+                .update_square(to, game_state_clone.turn, promotion_piece);
         }
 
-        self.turn = self.turn.opposite();
+        game_state_clone.turn = game_state_clone.turn.opposite();
+
+        game_state_clone
     }
 
     fn update_castle_availability(&mut self, from: usize, to: usize) {
@@ -110,17 +129,164 @@ impl GameState {
         }
     }
 
+    pub fn generate_game_state_info(&self) -> GameStateInfo {
+        let mut game_state_info = GameStateInfo::default();
+        self.generate_attack_mask(&mut game_state_info);
+        self.generate_pin_masks(&mut game_state_info);
+        game_state_info
+    }
+
+    pub fn generate_attack_mask(&self, game_state_info: &mut GameStateInfo) {
+        let opponent_bitmask = self.board.get_color_bitmask(self.turn.opposite());
+        (0..64).for_each(|index| {
+            if (1 << index) & opponent_bitmask > 0 {
+                let mailbox_start_index = BOARD_INDEX_TO_MAILBOX_INDEX[index];
+                let (_color, piece) = self.board.get_square(index);
+                if piece == Piece::Pawn {
+                    let pawn_mailbox_offsets =
+                        get_pawn_mailbox_attack_indices(&self.turn.opposite(), index);
+                    for target_mailbox_index in pawn_mailbox_offsets {
+                        if let Some(target_index) = MAILBOX[target_mailbox_index] {
+                            game_state_info.attack_mask |= 1 << target_index;
+                        }
+                    }
+                }
+                let mailbox_direction_offsets = get_piece_mailbox_direction_offsets(&piece);
+                for mailbox_offset in mailbox_direction_offsets {
+                    let target_mailbox_index_plus = mailbox_start_index + mailbox_offset;
+                    let target_mailbox_index_minus = mailbox_start_index - mailbox_offset;
+                    for mut target_mailbox_index in
+                        [target_mailbox_index_plus, target_mailbox_index_minus]
+                    {
+                        while let Some(target_index) = MAILBOX[target_mailbox_index] {
+                            game_state_info.attack_mask |= 1 << target_index;
+                            let (attacked_color, attacked_piece) = self.board.get_square(target_index);
+                            if !piece.is_slide()
+                                || attacked_piece != Piece::Empty
+                                    // Ignore king for calculating attack mak
+                                    && !(attacked_color == self.turn && attacked_piece == Piece::King)
+                            {
+                                break;
+                            }
+                            if target_mailbox_index < mailbox_start_index {
+                                target_mailbox_index -= mailbox_offset;
+                            } else {
+                                target_mailbox_index += mailbox_offset;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    pub fn generate_pin_masks(&self, game_state_info: &mut GameStateInfo) {
+        let king_index = self.board.find_king(self.turn);
+        let mailbox_start_index = BOARD_INDEX_TO_MAILBOX_INDEX[king_index];
+        // Check Bishops, Rooks, and Queens
+        for piece_to_check in [Piece::Rook, Piece::Bishop] {
+            let mailbox_direction_offsets = get_piece_mailbox_direction_offsets(&piece_to_check);
+            for mailbox_offset in mailbox_direction_offsets {
+                let target_mailbox_index_plus = mailbox_start_index + mailbox_offset;
+                let target_mailbox_index_minus = mailbox_start_index - mailbox_offset;
+                for mut target_mailbox_index in
+                    [target_mailbox_index_plus, target_mailbox_index_minus]
+                {
+                    let mut found_piece_index = None;
+                    let mut mask: u64 = 0;
+                    while let Some(target_index) = MAILBOX[target_mailbox_index] {
+                        mask |= 1 << target_index;
+                        let (color, piece) = self.board.get_square(target_index);
+                        if color == self.turn {
+                            if found_piece_index.is_some() {
+                                // Found second piece, no pin possible
+                                break;
+                            } else {
+                                found_piece_index = Some(target_index);
+                            }
+                        } else if color == self.turn.opposite() {
+                            if piece == Piece::Queen || piece == piece_to_check {
+                                if let Some(found_piece_index) = found_piece_index {
+                                    game_state_info.pins.insert(found_piece_index, mask);
+                                } else {
+                                    game_state_info.in_double_check = game_state_info.in_check;
+                                    game_state_info.in_check = true;
+                                    if game_state_info.in_double_check {
+                                        // Double check means only king moves are valid; no need to check anything more
+                                        return;
+                                    } else {
+                                        game_state_info.check_mask = mask;
+                                    }
+                                }
+                            }
+                            break;
+                        }
+                        if target_mailbox_index < mailbox_start_index {
+                            target_mailbox_index -= mailbox_offset;
+                        } else {
+                            target_mailbox_index += mailbox_offset;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Check Knights
+        for mailbox_offset in KNIGHT_MAILBOX_DIRECTION_OFFSETS {
+            let target_mailbox_index_plus = mailbox_start_index + mailbox_offset;
+            let target_mailbox_index_minus = mailbox_start_index - mailbox_offset;
+            for target_mailbox_index in [target_mailbox_index_plus, target_mailbox_index_minus] {
+                if let Some(target_index) = MAILBOX[target_mailbox_index] {
+                    let (color, piece) = self.board.get_square(target_index);
+                    if color == self.turn.opposite() && piece == Piece::Knight {
+                        game_state_info.in_double_check = game_state_info.in_check;
+                        game_state_info.in_check = true;
+                        if game_state_info.in_double_check {
+                            // Double check means only king moves are valid; no need to check anything more
+                            return;
+                        } else {
+                            game_state_info.check_mask = 1 << target_index;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Check Pawns
+        let target_mailbox_indices = get_pawn_mailbox_attack_indices(&self.turn, king_index);
+        for target_mailbox_index in target_mailbox_indices {
+            if let Some(target_index) = MAILBOX[target_mailbox_index] {
+                let (color, piece) = self.board.get_square(target_index);
+                if color == self.turn.opposite() && piece == Piece::Pawn {
+                    game_state_info.in_check = true;
+                    game_state_info.check_mask = 1 << target_index;
+                    // Can't double check with pawn, no need to check more
+                    break;
+                }
+            }
+        }
+    }
+
     // Generates pseudo legal moves, then removes the ones with the king in check.
     // This is slow and should be updated later.
-    pub fn generate_legal_moves(&self) -> Vec<GameState> {
-        let pseudo_legal_moves = self.generate_pseudo_legal_moves();
+    pub fn generate_legal_states(&self) -> Vec<GameState> {
+        self.generate_legal_states_inner(GLOBAL_WITH_INFO)
+    }
+
+    pub fn generate_legal_states_inner(&self, with_info: bool) -> Vec<GameState> {
+        let pseudo_legal_moves = self.generate_pseudo_legal_moves(with_info);
+        if with_info {
+            return pseudo_legal_moves
+                .iter()
+                .map(|m| self.perform_move(*m))
+                .collect();
+        }
         let current_is_in_check = self.is_in_check();
         pseudo_legal_moves
             .iter()
             .filter(|&next_move| !next_move.castle || !current_is_in_check)
             .filter_map(|&next_move| {
-                let mut game_state_clone = self.clone();
-                game_state_clone.perform_move(next_move);
+                let game_state_clone = self.perform_move(next_move);
                 if next_move.castle {
                     let castle_into_check = game_state_clone.is_opponent_in_check();
                     let check_index = (next_move.from + next_move.to) / 2;
@@ -131,13 +297,10 @@ impl GameState {
                     } else {
                         Some(game_state_clone)
                     }
+                } else if game_state_clone.is_opponent_in_check() {
+                    None
                 } else {
-                    let is_in_check = game_state_clone.is_opponent_in_check();
-                    if is_in_check {
-                        None
-                    } else {
-                        Some(game_state_clone)
-                    }
+                    Some(game_state_clone)
                 }
             })
             .collect()
@@ -145,13 +308,21 @@ impl GameState {
 
     #[allow(dead_code)]
     pub fn generate_legal_moves_at_depth(&self, depth: usize) -> Vec<GameState> {
-        let mut game_states = self.generate_legal_moves();
+        self.generate_legal_moves_at_depth_inner(depth, true)
+    }
+
+    pub fn generate_legal_moves_at_depth_inner(
+        &self,
+        depth: usize,
+        with_info: bool,
+    ) -> Vec<GameState> {
+        let mut game_states = self.generate_legal_states_inner(with_info);
 
         let mut curr_depth = 1;
         while curr_depth < depth {
             curr_depth += 1;
             game_states = game_states.iter_mut().fold(vec![], |mut next, game_state| {
-                let mut next_move_list = game_state.generate_legal_moves();
+                let mut next_move_list = game_state.generate_legal_states_inner(with_info);
                 next.append(&mut next_move_list);
                 next
             });
@@ -160,29 +331,39 @@ impl GameState {
         game_states
     }
 
-    pub fn generate_pseudo_legal_moves(&self) -> Vec<Move> {
-        self.generate_pseudo_legal_moves_inner(self.turn, false)
+    pub fn generate_pseudo_legal_moves(&self, with_info: bool) -> Vec<Move> {
+        let game_state_info = if with_info {
+            self.generate_game_state_info()
+        } else {
+            GameStateInfo::default()
+        };
+        self.generate_pseudo_legal_moves_inner(self.turn, &game_state_info)
     }
 
-    fn generate_pseudo_legal_moves_inner(&self, color: Color, attack_only: bool) -> Vec<Move> {
-        let mut moves = vec![];
-
+    fn generate_pseudo_legal_moves_inner(
+        &self,
+        color: Color,
+        game_state_info: &GameStateInfo,
+    ) -> Vec<Move> {
         let board = &self.board;
+        // In double check, only calculate king moves
+        if game_state_info.in_double_check {
+            let king_index = board.find_king(color);
+            return self.gen_moves_piece(color, &Piece::King, king_index, vec![], game_state_info);
+        }
+        let mut moves = vec![];
+        let mask_to_check = board.get_color_bitmask(color);
         for index in 0..64 {
-            let (square_color, square_piece) = board.get_square(index);
-            if square_color == color {
+            if (1 << index) & mask_to_check > 0 {
+                let (_square_color, square_piece) = board.get_square(index);
                 moves = match square_piece {
-                    Piece::Pawn => self.gen_moves_pawn(color, index, attack_only, moves),
-                    Piece::Bishop | Piece::Rook | Piece::Queen => {
-                        self.gen_moves_piece(color, &square_piece, index, true, attack_only, moves)
-                    }
-                    Piece::King | Piece::Knight => {
-                        self.gen_moves_piece(color, &square_piece, index, false, attack_only, moves)
-                    }
+                    Piece::Pawn => self.gen_moves_pawn(color, index, moves, game_state_info),
                     Piece::Empty => moves,
+                    _ => self.gen_moves_piece(color, &square_piece, index, moves, game_state_info),
                 };
-                if !attack_only && square_piece == Piece::King {
-                    moves = self.gen_castle_moves(color, moves);
+                // Can't castle out of check
+                if square_piece == Piece::King && !game_state_info.in_check {
+                    moves = self.gen_castle_moves(color, moves, game_state_info);
                 }
             }
         }
@@ -194,24 +375,37 @@ impl GameState {
         &self,
         color: Color,
         index: usize,
-        attack_only: bool,
         mut moves: Vec<Move>,
+        game_state_info: &GameStateInfo,
     ) -> Vec<Move> {
         let one_square_move_index = get_pawn_move_index(&color, index);
-        if !attack_only && self.board.is_index_empty(one_square_move_index) {
+        if self.board.is_index_empty(one_square_move_index) {
+            let is_one_square_move_legal =
+                self.is_move_legal(index, one_square_move_index, &Piece::Pawn, game_state_info);
             if color == Color::White && one_square_move_index < 8
                 || color == Color::Black && one_square_move_index > 55
             {
-                [Piece::Knight, Piece::Bishop, Piece::Rook, Piece::Queen]
-                    .iter()
-                    .for_each(|piece| {
-                        moves.push(Move::promotion(index, one_square_move_index, *piece));
-                    });
+                if is_one_square_move_legal {
+                    [Piece::Knight, Piece::Bishop, Piece::Rook, Piece::Queen]
+                        .iter()
+                        .for_each(|piece| {
+                            moves.push(Move::promotion(index, one_square_move_index, *piece));
+                        });
+                }
             } else {
-                moves.push(Move::new(index, one_square_move_index));
+                if is_one_square_move_legal {
+                    moves.push(Move::new(index, one_square_move_index));
+                }
                 if color == Color::White && index >= 48 || color == Color::Black && index < 16 {
                     let two_square_move_index = get_pawn_move_index(&color, one_square_move_index);
-                    if self.board.is_index_empty(two_square_move_index) {
+                    if self.board.is_index_empty(two_square_move_index)
+                        && self.is_move_legal(
+                            index,
+                            two_square_move_index,
+                            &Piece::Pawn,
+                            game_state_info,
+                        )
+                    {
                         moves.push(Move::two_square_pawn_move(index, two_square_move_index));
                     }
                 }
@@ -222,25 +416,33 @@ impl GameState {
         let en_passant_index = self.en_passant_index.unwrap_or(100);
         for mailbox_attack_index in mailbox_attack_indices {
             if let Some(attack_index) = MAILBOX[mailbox_attack_index] {
-                if attack_index == en_passant_index {
-                    moves.push(Move::en_passant(index, attack_index));
-                } else {
-                    let is_target_empty = &self.board.is_index_empty(attack_index);
-                    if !is_target_empty && !self.board.is_index_of_color(attack_index, color) {
-                        if color == Color::White && attack_index < 8
-                            || color == Color::Black && attack_index > 55
-                        {
-                            [Piece::Knight, Piece::Bishop, Piece::Rook, Piece::Queen]
-                                .iter()
-                                .for_each(|piece| {
-                                    moves.push(Move::promotion_capture(
-                                        index,
-                                        attack_index,
-                                        *piece,
-                                    ));
-                                });
-                        } else {
-                            moves.push(Move::capture(index, attack_index));
+                if self.is_move_legal(index, attack_index, &Piece::Pawn, game_state_info) {
+                    if attack_index == en_passant_index {
+                        // Maybe optimizable, but rare enough that it's not worth it
+                        // (at most 2 possible en_passant moves)
+                        let game_state_clone =
+                            self.perform_move(Move::en_passant(index, attack_index));
+                        if !game_state_clone.is_opponent_in_check() {
+                            moves.push(Move::en_passant(index, attack_index));
+                        }
+                    } else {
+                        let is_target_empty = &self.board.is_index_empty(attack_index);
+                        if !is_target_empty && !self.board.is_index_of_color(attack_index, color) {
+                            if color == Color::White && attack_index < 8
+                                || color == Color::Black && attack_index > 55
+                            {
+                                [Piece::Knight, Piece::Bishop, Piece::Rook, Piece::Queen]
+                                    .iter()
+                                    .for_each(|piece| {
+                                        moves.push(Move::promotion_capture(
+                                            index,
+                                            attack_index,
+                                            *piece,
+                                        ));
+                                    });
+                            } else {
+                                moves.push(Move::capture(index, attack_index));
+                            }
                         }
                     }
                 }
@@ -255,30 +457,31 @@ impl GameState {
         color: Color,
         piece: &Piece,
         index: usize,
-        slide: bool,
-        attack_only: bool,
         mut moves: Vec<Move>,
+        game_state_info: &GameStateInfo,
     ) -> Vec<Move> {
         let mailbox_index = BOARD_INDEX_TO_MAILBOX_INDEX[index];
         let mailbox_offsets = get_piece_mailbox_direction_offsets(piece);
         for mailbox_offset in mailbox_offsets {
-            if slide {
+            if piece.is_slide() {
                 moves = self.gen_moves_slide_direction(
                     color,
+                    piece,
                     index,
                     mailbox_index,
                     *mailbox_offset,
-                    attack_only,
                     moves,
+                    game_state_info,
                 );
             } else {
                 moves = self.gen_moves_hop_direction(
                     color,
+                    piece,
                     index,
                     mailbox_index,
                     *mailbox_offset,
-                    attack_only,
                     moves,
+                    game_state_info,
                 );
             }
         }
@@ -288,11 +491,12 @@ impl GameState {
     fn gen_moves_hop_direction(
         &self,
         color: Color,
+        piece: &Piece,
         index: usize,
         mailbox_index: usize,
         mailbox_offset: usize,
-        attack_only: bool,
         mut moves: Vec<Move>,
+        game_state_info: &GameStateInfo,
     ) -> Vec<Move> {
         let target_mailbox_index_plus = mailbox_index + mailbox_offset;
         let target_mailbox_index_minus = mailbox_index - mailbox_offset;
@@ -302,7 +506,7 @@ impl GameState {
                 // Off the board
                 None => (),
                 Some(generated_move) => {
-                    if !attack_only || generated_move.capture {
+                    if self.is_move_legal(index, generated_move.to, piece, game_state_info) {
                         moves.push(generated_move);
                     }
                 }
@@ -314,57 +518,93 @@ impl GameState {
     fn gen_moves_slide_direction(
         &self,
         color: Color,
+        piece: &Piece,
         index: usize,
         mailbox_index: usize,
         mailbox_offset: usize,
-        attack_only: bool,
         mut moves: Vec<Move>,
+        game_state_info: &GameStateInfo,
     ) -> Vec<Move> {
         let target_mailbox_index_plus = mailbox_index + mailbox_offset;
         let target_mailbox_index_minus = mailbox_index - mailbox_offset;
         for mut target_mailbox_index in [target_mailbox_index_plus, target_mailbox_index_minus] {
-            loop {
-                let generated_move = self.gen_move_from_mailbox(color, target_mailbox_index, index);
-                match generated_move {
-                    // Off the board
-                    None => break,
-                    Some(generated_move) => {
-                        let capture = generated_move.capture;
-                        if !attack_only || capture {
-                            moves.push(generated_move);
-                        }
-                        if capture {
-                            break;
-                        }
-                        if target_mailbox_index < mailbox_index {
-                            target_mailbox_index -= mailbox_offset;
-                        } else {
-                            target_mailbox_index += mailbox_offset;
-                        }
-                    }
+            while let Some(generated_move) =
+                self.gen_move_from_mailbox(color, target_mailbox_index, index)
+            {
+                let capture = generated_move.capture;
+                if self.is_move_legal(index, generated_move.to, piece, game_state_info) {
+                    moves.push(generated_move);
+                }
+                if capture {
+                    break;
+                }
+                if target_mailbox_index < mailbox_index {
+                    target_mailbox_index -= mailbox_offset;
+                } else {
+                    target_mailbox_index += mailbox_offset;
                 }
             }
         }
         moves
     }
 
-    fn gen_castle_moves(&self, color: Color, mut moves: Vec<Move>) -> Vec<Move> {
-        if color == Color::Black {
-            if self.castle.black_queenside && self.board.castle_black_queenside_open() {
-                moves.push(Move::castle(4, 2));
-            }
-            if self.castle.black_kingside && self.board.castle_black_kingside_open() {
-                moves.push(Move::castle(4, 6));
-            }
-        } else {
-            if self.castle.white_queenside && self.board.castle_white_queenside_open() {
-                moves.push(Move::castle(60, 58));
-            }
-            if self.castle.white_kingside && self.board.castle_white_kingside_open() {
-                moves.push(Move::castle(60, 62));
+    fn gen_castle_moves(
+        &self,
+        color: Color,
+        mut moves: Vec<Move>,
+        game_state_info: &GameStateInfo,
+    ) -> Vec<Move> {
+        if !game_state_info.in_check {
+            if color == Color::Black {
+                if self.castle.black_queenside
+                    && self.board.castle_black_queenside_open(game_state_info)
+                {
+                    moves.push(Move::castle(4, 2));
+                }
+                if self.castle.black_kingside
+                    && self.board.castle_black_kingside_open(game_state_info)
+                {
+                    moves.push(Move::castle(4, 6));
+                }
+            } else {
+                if self.castle.white_queenside
+                    && self.board.castle_white_queenside_open(game_state_info)
+                {
+                    moves.push(Move::castle(60, 58));
+                }
+                if self.castle.white_kingside
+                    && self.board.castle_white_kingside_open(game_state_info)
+                {
+                    moves.push(Move::castle(60, 62));
+                }
             }
         }
         moves
+    }
+
+    fn is_move_legal(
+        &self,
+        from_index: usize,
+        to_index: usize,
+        piece: &Piece,
+        game_state_info: &GameStateInfo,
+    ) -> bool {
+        let to_mask = 1 << to_index;
+        if piece == &Piece::King && game_state_info.attack_mask & to_mask > 0 {
+            // Moving into check, invalid
+            false
+        } else if game_state_info.in_check {
+            // Already checked above that the king is not moving into check
+            return piece == &Piece::King
+            // Pinned pieces cannot block check
+                || !game_state_info.pins.contains_key(&from_index)
+                    && game_state_info.check_mask & to_mask > 0;
+        } else if let Some(pin_mask) = game_state_info.pins.get(&from_index) {
+            // Pinned knights cannot move
+            return piece != &Piece::Knight && pin_mask & to_mask > 0;
+        } else {
+            true
+        }
     }
 
     fn gen_move_from_mailbox(
@@ -451,7 +691,7 @@ mod perft_tests {
 
     #[test]
     fn perft_pos_1_depth_1() {
-        let moves = GameState::default().generate_legal_moves();
+        let moves = GameState::default().generate_legal_states();
         assert_eq!(moves.len(), 20);
     }
 
@@ -472,7 +712,7 @@ mod perft_tests {
         let game_state = get_game_state_from_fen(
             "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq -",
         );
-        let moves = game_state.generate_legal_moves();
+        let moves = game_state.generate_legal_states();
         assert_eq!(moves.len(), 48);
     }
 
@@ -497,7 +737,7 @@ mod perft_tests {
     #[test]
     fn perft_pos_3_depth_1() {
         let game_state = get_game_state_from_fen("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - -");
-        let moves = game_state.generate_legal_moves();
+        let moves = game_state.generate_legal_states();
         assert_eq!(moves.len(), 14);
     }
 
@@ -520,7 +760,7 @@ mod perft_tests {
         let game_state = get_game_state_from_fen(
             "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1",
         );
-        let moves = game_state.generate_legal_moves();
+        let moves = game_state.generate_legal_states();
         assert_eq!(moves.len(), 6);
     }
 
@@ -546,7 +786,7 @@ mod perft_tests {
     fn perft_pos_5_depth_1() {
         let game_state =
             get_game_state_from_fen("rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8");
-        let moves = game_state.generate_legal_moves();
+        let moves = game_state.generate_legal_states();
         assert_eq!(moves.len(), 44);
     }
 
@@ -579,7 +819,7 @@ mod perft_tests {
         let game_state = get_game_state_from_fen(
             "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10",
         );
-        let moves = game_state.generate_legal_moves();
+        let moves = game_state.generate_legal_states();
         assert_eq!(moves.len(), 46);
     }
 
@@ -605,7 +845,7 @@ mod perft_tests {
     fn print_move_map(game_states: &[GameState]) {
         let mut move_map: HashMap<String, usize> = HashMap::new();
         game_states.iter().for_each(|game_state| {
-            let first_move = game_state.move_list.get(0);
+            let first_move = game_state.move_list.first();
             if let Some(first_move) = first_move {
                 let from_square = get_square_from_index(first_move.from);
                 let to_square = get_square_from_index(first_move.to);
@@ -621,19 +861,25 @@ mod perft_tests {
 mod benchmark_tests {
     extern crate test;
 
-    use super::{fen_util::*, GameState};
+    use super::{fen_util::*, GameState, Move, GLOBAL_WITH_INFO};
     use test::Bencher;
+
+    #[bench]
+    fn perform_move(b: &mut Bencher) {
+        let game_state = GameState::default();
+        b.iter(|| game_state.perform_move(Move::new(52, 36)));
+    }
 
     #[bench]
     fn start_pos_pseudo_bench(b: &mut Bencher) {
         let game_state = GameState::default();
-        b.iter(|| game_state.generate_pseudo_legal_moves());
+        b.iter(|| game_state.generate_pseudo_legal_moves(GLOBAL_WITH_INFO));
     }
 
     #[bench]
     fn start_pos_legal_bench(b: &mut Bencher) {
         let game_state = GameState::default();
-        b.iter(|| game_state.generate_legal_moves());
+        b.iter(|| game_state.generate_legal_states());
     }
 
     #[bench]
@@ -641,7 +887,7 @@ mod benchmark_tests {
         let game_state = get_game_state_from_fen(
             "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq -",
         );
-        b.iter(|| game_state.generate_pseudo_legal_moves());
+        b.iter(|| game_state.generate_pseudo_legal_moves(GLOBAL_WITH_INFO));
     }
 
     #[bench]
@@ -649,7 +895,7 @@ mod benchmark_tests {
         let game_state = get_game_state_from_fen(
             "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq -",
         );
-        b.iter(|| game_state.generate_legal_moves());
+        b.iter(|| game_state.generate_legal_states());
     }
 
     #[bench]

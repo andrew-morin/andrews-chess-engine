@@ -1,4 +1,3 @@
-#![feature(const_mut_refs)]
 #![feature(test)]
 
 extern crate console_error_panic_hook;
@@ -56,22 +55,22 @@ pub fn get_square_at_index(game_state: JsValue, index: usize) -> JsValue {
 #[wasm_bindgen]
 pub fn get_pseudo_legal_moves(game_state: JsValue) -> JsValue {
     let game_state: GameState = game_state.into_serde().unwrap();
-    let moves = game_state.generate_pseudo_legal_moves();
+    let moves = game_state.generate_pseudo_legal_moves(true);
     JsValue::from_serde(&moves).unwrap()
 }
 
 #[wasm_bindgen]
 pub fn get_next_legal_game_states(game_state: JsValue) -> JsValue {
     let game_state: GameState = game_state.into_serde().unwrap();
-    let moves = game_state.generate_legal_moves();
+    let moves = game_state.generate_legal_states();
     JsValue::from_serde(&moves).unwrap()
 }
 
 #[wasm_bindgen]
 pub fn perform_move(game_state: JsValue, next_move: JsValue) -> JsValue {
-    let mut game_state: GameState = game_state.into_serde().unwrap();
+    let game_state: GameState = game_state.into_serde().unwrap();
     let next_move: Move = next_move.into_serde().unwrap();
-    game_state.perform_move(next_move);
+    let game_state = game_state.perform_move(next_move);
     JsValue::from_serde(&game_state).unwrap()
 }
 
@@ -83,7 +82,7 @@ pub fn in_check(game_state: JsValue) -> InCheckReturn {
     let game_state: GameState = game_state.into_serde().unwrap();
     let in_check = game_state.is_in_check();
     let king_index = game_state.board.find_king(game_state.turn);
-    InCheckReturn(in_check, king_index as usize)
+    InCheckReturn(in_check, king_index)
 }
 
 #[wasm_bindgen]
@@ -91,7 +90,7 @@ pub fn perform_best_engine_move(game_state: JsValue) -> JsValue {
     let mut game_state: GameState = game_state.into_serde().unwrap();
     let next_move = search(&game_state);
     if let Some(next_move) = next_move {
-        game_state.perform_move(next_move);
+        game_state = game_state.perform_move(next_move);
     }
     JsValue::from_serde(&game_state).unwrap()
 }

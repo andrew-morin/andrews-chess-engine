@@ -1,4 +1,6 @@
-use super::constants::*;
+use std::fmt::Debug;
+
+use super::{constants::*, fen_util::get_square_from_index, GameStateInfo};
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
 big_array! { BigArray; }
@@ -31,6 +33,12 @@ pub enum Piece {
     Rook,
     Queen,
     King,
+}
+
+impl Piece {
+    pub fn is_slide(&self) -> bool {
+        matches!(self, Piece::Queen | Piece::Rook | Piece::Bishop)
+    }
 }
 
 fn to_str<S>(x: &u64, s: S) -> Result<S::Ok, S::Error>
@@ -143,13 +151,13 @@ impl Board {
         self.empty & bit_mask != 0
     }
 
-    pub fn find_king(&self, color: Color) -> u32 {
+    pub fn find_king(&self, color: Color) -> usize {
         if color == Color::White {
             let king_bit_mask = self.kings & self.white;
-            king_bit_mask.ilog2()
+            king_bit_mask.ilog2() as usize
         } else {
             let king_bit_mask = self.kings & self.black;
-            king_bit_mask.ilog2()
+            king_bit_mask.ilog2() as usize
         }
     }
 
@@ -385,24 +393,30 @@ impl Board {
         self.assert_board_state(format!("update at index: {}", index));
     }
 
-    pub fn castle_black_queenside_open(&self) -> bool {
-        let castle_square_bitmask = 0x00_00_00_00_00_00_00_0e;
-        !self.empty & castle_square_bitmask == 0
+    pub fn castle_black_queenside_open(&self, game_state_info: &GameStateInfo) -> bool {
+        let castle_square_open_bitmask = 0x00_00_00_00_00_00_00_0e;
+        let castle_square_attack_bitmask = 0x00_00_00_00_00_00_00_0c;
+        !self.empty & castle_square_open_bitmask == 0
+            && game_state_info.attack_mask & castle_square_attack_bitmask == 0
     }
 
-    pub fn castle_black_kingside_open(&self) -> bool {
+    pub fn castle_black_kingside_open(&self, game_state_info: &GameStateInfo) -> bool {
         let castle_square_bitmask = 0x00_00_00_00_00_00_00_60;
         !self.empty & castle_square_bitmask == 0
+            && game_state_info.attack_mask & castle_square_bitmask == 0
     }
 
-    pub fn castle_white_queenside_open(&self) -> bool {
-        let castle_square_bitmask = 0x0e_00_00_00_00_00_00_00;
-        !self.empty & castle_square_bitmask == 0
+    pub fn castle_white_queenside_open(&self, game_state_info: &GameStateInfo) -> bool {
+        let castle_square_open_bitmask = 0x0e_00_00_00_00_00_00_00;
+        let castle_square_attack_bitmask = 0x0c_00_00_00_00_00_00_00;
+        !self.empty & castle_square_open_bitmask == 0
+            && game_state_info.attack_mask & castle_square_attack_bitmask == 0
     }
 
-    pub fn castle_white_kingside_open(&self) -> bool {
+    pub fn castle_white_kingside_open(&self, game_state_info: &GameStateInfo) -> bool {
         let castle_square_bitmask = 0x60_00_00_00_00_00_00_00;
         !self.empty & castle_square_bitmask == 0
+            && game_state_info.attack_mask & castle_square_bitmask == 0
     }
 
     fn assert_board_state(&self, details: String) {
@@ -469,7 +483,7 @@ impl Board {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Copy, Default, PartialEq)]
 pub struct Move {
     pub from: usize,
     pub to: usize,
@@ -478,6 +492,20 @@ pub struct Move {
     pub castle: bool,
     pub two_square_pawn_move: bool,
     pub promotion_piece: Option<Piece>,
+}
+
+impl Debug for Move {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Move")
+            .field("from", &get_square_from_index(self.from))
+            .field("to", &get_square_from_index(self.to))
+            .field("capture", &self.capture)
+            .field("en_passant", &self.en_passant)
+            .field("castle", &self.castle)
+            .field("two_square_pawn_move", &self.two_square_pawn_move)
+            .field("promotion_piece", &self.promotion_piece)
+            .finish()
+    }
 }
 
 impl Move {

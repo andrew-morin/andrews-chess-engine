@@ -49,7 +49,7 @@ fn inner_search(game_state: &GameState, depth: u32) -> Option<(GameState, i32)> 
     if depth == 0 {
         panic!("depth must be at least 1");
     }
-    let states = game_state.generate_legal_moves();
+    let states = game_state.generate_legal_states();
     if states.is_empty() {
         return None;
     }
@@ -93,7 +93,7 @@ fn inner_search(game_state: &GameState, depth: u32) -> Option<(GameState, i32)> 
 }
 
 fn evaluate(game_state: &GameState) -> i32 {
-    if game_state.generate_legal_moves().is_empty() {
+    if game_state.generate_legal_states().is_empty() {
         return get_no_move_eval(game_state);
     }
     let board = &game_state.board;
@@ -164,12 +164,19 @@ mod benchmark_tests {
     use test::Bencher;
 
     #[bench]
+    fn search_depth_1_start_position(b: &mut Bencher) {
+        let game_state = GameState::default();
+        b.iter(|| search_at_depth(&game_state, 1));
+    }
+
+    // These tests are slow, so ignore them by default
+
+    #[bench]
+    #[ignore]
     fn search_depth_2_start_position(b: &mut Bencher) {
         let game_state = GameState::default();
         b.iter(|| search_at_depth(&game_state, 2));
     }
-
-    // These tests are slow, so ignore them by default
 
     #[bench]
     #[ignore]
