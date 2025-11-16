@@ -3,8 +3,6 @@ use std::fmt::Debug;
 use super::{constants::*, fen_util::get_square_from_index, GameStateInfo};
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
-big_array! { BigArray; }
-
 #[repr(u8)]
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
 pub enum Color {

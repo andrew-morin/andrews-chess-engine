@@ -4,16 +4,10 @@
   "description": "web application for Andrew's Chess Engine",
   "main": "index.js",
   "scripts": {
-    "build": "wasm-pack build && yarn upgrade andrews-chess-engine && webpack --config webpack.prod.js",
-    "start": "wasm-pack build && yarn upgrade andrews-chess-engine && webpack serve --open --config webpack.dev.js",
+    "build": "yarn install && webpack --config webpack.prod.js",
+    "start": "yarn install && webpack serve --open --config webpack.dev.js",
     "lint": "eslint src --ext=.js"
   },
-  "keywords": [
-    "webassembly",
-    "wasm",
-    "rust",
-    "webpack"
-  ],
   "author": "Andrew Morin <andrewmorin8@gmail.com>",
   "license": "MIT",
   "dependencies": {

@@ -1,4 +1,4 @@
-import * as wasm from 'wasm-andrews-chess-engine';
+import * as wasm from 'wasm-andrews-chess-engine/andrews_chess_engine';
 import blackPawn from './piece_images/black_pawn.svg';
 import blackBishop from './piece_images/black_bishop.svg';
 import blackKnight from './piece_images/black_knight.svg';

@@ -1,0 +1,24 @@
+{
+  "name": "andrews-chess-engine",
+  "version": "0.1.0",
+  "description": "Andrew's Chess Engine",
+  "private": true,
+  "scripts": {
+    "build": "yarn build:cargo && yarn build:wasm-bindgen && yarn build:wasm-opt && yarn build:web",
+    "build:cargo": "cargo build --release --target wasm32-unknown-unknown",
+    "build:wasm-bindgen": "wasm-bindgen target/wasm32-unknown-unknown/release/andrews_chess_engine.wasm --out-dir pkg --typescript --target bundler",
+    "build:wasm-opt": "wasm-opt pkg/andrews_chess_engine_bg.wasm -o pkg/andrews_chess_engine_bg.wasm-opt.wasm -O && mv pkg/andrews_chess_engine_bg.wasm-opt.wasm pkg/andrews_chess_engine_bg.wasm || yarn build:wasm-opt-note",
+    "build:wasm-opt-note": "echo 'NOTE: Since wasm-opt could not be found (or it failed), the resulting module might not perform that well, but it should still work.'",
+    "build:web": "(cd www && yarn build)",
+    "start": "yarn build && (cd www && yarn start)",
+    "lint": "(cd www && yarn lint)"
+  },
+  "keywords": [
+    "webassembly",
+    "wasm",
+    "rust",
+    "webpack"
+  ],
+  "author": "Andrew Morin <andrewmorin8@gmail.com>",
+  "license": "MIT"
+}

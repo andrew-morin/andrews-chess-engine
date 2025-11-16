@@ -1,7 +1,6 @@
 #![feature(test)]
 
 extern crate console_error_panic_hook;
-#[macro_use]
 extern crate serde_big_array;
 extern crate wasm_bindgen;
 

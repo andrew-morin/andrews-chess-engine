@@ -1,10 +1,10 @@
+use rand::prelude::IndexedRandom;
 use std::cmp::Ordering;
 
 use crate::board::{
     types::{Board, Color, Move, Piece},
     GameState,
 };
-use rand::prelude::SliceRandom;
 
 // Values based on AlphaZero: https://arxiv.org/pdf/2009.04374.pdf (page 16)
 const PAWN_VALUE: i32 = 100;
@@ -85,7 +85,7 @@ fn inner_search(game_state: &GameState, depth: u32) -> Option<(Move, i32)> {
             Ordering::Less => {}
         }
     }
-    let best_move = best_moves.choose(&mut rand::thread_rng());
+    let best_move = best_moves.choose(&mut rand::rng());
     best_move.map(|best_move| (*best_move, sign * best_side_eval))
 }
 

@@ -31,7 +31,7 @@ pub fn get_game_state_from_fen(fen: &str) -> GameState {
                 }
                 break;
             } else if c == '/' {
-                if index % 8 != 0 {
+                if !index.is_multiple_of(8) {
                     panic!(
                         "Invalid FEN: '{}', rank was too short at index {}",
                         fen, index
@@ -39,7 +39,7 @@ pub fn get_game_state_from_fen(fen: &str) -> GameState {
                 }
                 found_slash = true;
                 continue;
-            } else if index % 8 == 0 && !found_slash {
+            } else if index.is_multiple_of(8) && !found_slash {
                 panic!(
                     "Invalid FEN: '{}', rank was too long at index {}",
                     fen, index
@@ -204,7 +204,6 @@ pub fn get_game_state_from_fen(fen: &str) -> GameState {
         castle,
         en_passant_index,
         halfmove_counter,
-        ..Default::default()
     }
 }
 
